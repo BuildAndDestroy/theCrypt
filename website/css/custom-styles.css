@@ -1,0 +1,22 @@
+body {
+    background-color: #1e1e2e;
+    color: #c9d1d9;
+}
+.navbar, .footer {
+    background-color: #282c34;
+}
+.navbar-brand, .nav-link {
+    color: #c9d1d9 !important;
+}
+.navbar-brand:hover, .nav-link:hover {
+    color: #f78166 !important;
+}
+a {
+    color: #3d7b9c;
+}
+a:hover {
+    color: #519aba;
+}
+h1, h2, h3, h4, h5, h6 {
+    color: #c9d1d9;
+}
