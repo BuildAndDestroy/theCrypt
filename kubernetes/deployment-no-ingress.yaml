@@ -47,7 +47,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: registry.reaper-ut.com/thecrypt-website
+        image: registry.yourregistry.com/thecrypt-website
         ports:
         - containerPort: 80
         #volumeMounts:
