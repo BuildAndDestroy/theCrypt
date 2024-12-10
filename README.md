@@ -66,8 +66,31 @@ kubectl apply -f deployment-no-ingress.yaml
 
 Note: I have left deployment.yaml so if you decide to also run the website as a clearnet website, you can route to Tor and the clearnet.
 
+# Examples:
 
-# Nex Steps
+```
+$ kubectl get TorService --all-namespaces
+NAMESPACE       NAME             ONION DOMAIN                                                     READY
+tor-hidden-ns   my-tor-service   b5elviw6xff3udj4ayfjwdehp4mclsnsv6jewj4cfgvmdx7gz6cgsuad.onion   true
+
+odonnell@lin-behemoth:~/development/internal_git/theCrypt/kubernetes$ kubectl get all -n tor-hidden-ns
+NAME                                 READY   STATUS    RESTARTS   AGE
+pod/nginx-website-655b9fc577-tpp7b   1/1     Running   0          93s
+
+NAME                            TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+service/nginx-website-service   ClusterIP   10.102.162.204   <none>        80/TCP    94s
+
+NAME                            READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/nginx-website   1/1     1            1           94s
+
+NAME                                       DESIRED   CURRENT   READY   AGE
+replicaset.apps/nginx-website-655b9fc577   1         1         1       94s
+
+```
+
+
+
+# Next Steps
 
 * Separate Nginx and Tor proxy as two different pods
 * Continue to update web content to look better
