@@ -1,0 +1,111 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tor-hidden-ns
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: myregistrykey
+  namespace: tor-hidden-ns
+data:
+  .dockerconfigjson: {{ cat ~/.docker/config | base64 }}
+type: kubernetes.io/dockerconfigjson
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-website-service
+  namespace: tor-hidden-ns
+  labels:
+    app: nginx
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-website
+  namespace: tor-hidden-ns
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: registry.yourregistry.com/thecrypt-website
+        ports:
+        - containerPort: 80
+        #volumeMounts:
+        #- name: website-files
+        #  mountPath: /var/www/html
+      #volumes:
+      #- name: website-files
+      #  configMap:
+      #    name: website-config
+      imagePullSecrets:
+      - name: myregistrykey
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nginx-website-ingress
+  namespace: tor-hidden-ns
+  annotations:
+    #acme.cert-manager.io/http01-edit-in-place: "true"
+    #traefik.ingress.kubernetes.io/frontend-entry-points: http, https
+    #traefik.ingress.kubernetes.io/redirect-entry-point: http
+spec:
+  ingressClassName: "traefik"
+  rules:
+  - host: b5elviw6xff3udj4ayfjwdehp4mclsnsv6jewj4cfgvmdx7gz6cgsuad.onion
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx-website-service
+            port:
+              number: 80
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: nginx-website-ingressroute
+  namespace: tor-hidden-ns
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: HostRegexp(`b5elviw6xff3udj4ayfjwdehp4mclsnsv6jewj4cfgvmdx7gz6cgsuad.onion`) # Matches all requests (since Tor uses .onion routing)
+      kind: Rule
+      services:
+        - name: nginx-website-service
+          port: 80
+---
+apiVersion: mydomain.com/v1
+kind: TorService
+metadata:
+  name: my-tor-service
+  namespace: tor-hidden-ns
+spec:
+  serviceName: "nginx-website-service"
+  onionDomain: "b5elviw6xff3udj4ayfjwdehp4mclsnsv6jewj4cfgvmdx7gz6cgsuad.onion"
+  port: 80
+status:
+  ready: true

@@ -1,0 +1,51 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: torservices.mydomain.com
+spec:
+  group: mydomain.com
+  names:
+    kind: TorService
+    listKind: TorServiceList
+    plural: torservices
+    singular: torservice
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                serviceName:
+                  type: string
+                namespace:
+                  type: string
+                onionDomain:
+                  type: string
+                port:
+                  type: integer
+                config:
+                  type: object
+                  properties:
+                    hiddenServiceVersion:
+                      type: integer
+                    privateKeyType:
+                      type: string
+            status:
+              type: object
+              properties:
+                ready:
+                  type: boolean
+      additionalPrinterColumns:
+        - name: Onion Domain
+          type: string
+          jsonPath: .spec.onionDomain
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+

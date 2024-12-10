@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tor-hidden-ns
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: myregistrykey
+  namespace: tor-hidden-ns
+data:
+  .dockerconfigjson: {{ cat ~/.docker/config | base64 }}
+type: kubernetes.io/dockerconfigjson
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-website-service
+  namespace: tor-hidden-ns
+  labels:
+    app: nginx
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-website
+  namespace: tor-hidden-ns
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: registry.yourregistry.com/thecrypt-website
+        ports:
+        - containerPort: 80
+        #volumeMounts:
+        #- name: website-files
+        #  mountPath: /usr/share/nginx/html
+      #volumes:
+      #- name: website-files
+      #  configMap:
+      #    name: website-config
+      imagePullSecrets:
+      - name: myregistrykey
+---
+apiVersion: mydomain.com/v1
+kind: TorService
+metadata:
+  name: my-tor-service
+  namespace: tor-hidden-ns
+spec:
+  serviceName: "nginx-website-service"
+  onionDomain: "b5elviw6xff3udj4ayfjwdehp4mclsnsv6jewj4cfgvmdx7gz6cgsuad.onion"
+  port: 80
+status:
+  ready: true
