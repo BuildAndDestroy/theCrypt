@@ -82,6 +82,7 @@ spec:
         - -c
         - |
           cp -L /onion-key/* /var/lib/tor/hidden_service/
+          chown -R 1000:1000 /var/lib/tor/hidden_service
           chmod 700 /var/lib/tor/hidden_service
           chmod 600 /var/lib/tor/hidden_service/*
         volumeMounts:
@@ -104,6 +105,10 @@ spec:
           readOnlyRootFilesystem: false
       - name: tor
         image: registry.yourregistry.com/thecrypt-tor
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
         volumeMounts:
         - name: torrc
           mountPath: /etc/tor/torrc
