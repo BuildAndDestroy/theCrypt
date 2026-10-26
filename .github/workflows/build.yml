@@ -1,0 +1,43 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # Lint the active Dockerfiles.
+  hadolint:
+    name: Dockerfile lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile:
+          - Dockerfile
+          - Dockerfile.dev
+          - container-images/tor-sidecar.dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
+        continue-on-error: true
+
+  # Build the deployable images (no push). All Dockerfiles are self-contained.
+  images:
+    name: Build images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build dev website image
+        run: docker build -f Dockerfile.dev -t thecrypt-website-dev .
+
+      - name: Build production website image
+        run: docker build -f Dockerfile -t thecrypt-website .
+
+      - name: Build Tor sidecar image
+        run: docker build -f container-images/tor-sidecar.dockerfile -t thecrypt-tor .

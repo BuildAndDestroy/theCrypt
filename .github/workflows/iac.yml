@@ -1,0 +1,50 @@
+name: IaC Scan
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write   # upload SARIF to code scanning
+
+jobs:
+  checkov:
+    name: Checkov (Kubernetes + Dockerfile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: kubernetes,dockerfile,github_actions
+          output_format: cli,sarif
+          output_file_path: console,checkov.sarif
+          soft_fail: true   # report findings without failing the build
+      - name: Upload Checkov SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov.sarif
+        continue-on-error: true
+
+  trivy-config:
+    name: Trivy (misconfiguration)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Install the Trivy binary directly: the composite trivy-action pins a
+      # setup-trivy tag that upstream removed, so it is unreliable.
+      - name: Install Trivy
+        run: |
+          # Download the installer to a file first (avoid curl|sh), then run it.
+          curl -sfL -o /tmp/install-trivy.sh \
+            https://raw.githubusercontent.com/aquasecurity/trivy/v0.76.1/contrib/install.sh
+          sh /tmp/install-trivy.sh -b /usr/local/bin v0.76.1
+      - name: Run Trivy config scan
+        run: trivy config --format sarif --output trivy-config.sarif --exit-code 0 .
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-config.sarif
+        continue-on-error: true

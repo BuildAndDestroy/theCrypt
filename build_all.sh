@@ -1,6 +1,10 @@
 #!/bin/bash
+# Build the two deployable images. Both Dockerfiles are self-contained
+# (vendor assets pulled from pinned npm dist), so no separate build stages
+# are needed. Update the tags to match your registry before pushing.
+set -euo pipefail
 
-docker build -t bootstrap-build -f container-images/bootstrap.dockerfile .
-docker build -t bootstrapicons -f container-images/bootstrapicons.dockerfile .
-docker build -t customcssjs -f customcssjs.dockerfile .
-docker build -t registry.yourregistry.com/thecrypt-website -f Dockerfile .
+TAG="${TAG:-1.0.0}"
+
+docker build -t "registry.yourregistry.com/thecrypt-website:${TAG}" -f Dockerfile .
+docker build -t "registry.yourregistry.com/thecrypt-tor:${TAG}" -f container-images/tor-sidecar.dockerfile .

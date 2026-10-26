@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Crypt</title>
     <!-- Rebuilt Bootstrap CSS -->
@@ -31,22 +33,26 @@
     <!-- Hero Section -->
     <header class="bg-primary text-white text-center py-5">
         <div class="container">
-            <h1>Welcome to The Crypt</h1>
-            <p class="lead">Explore The Crypt For Death Row Subjects or Cadavers</p>
+            <h1><i class="bi bi-radioactive"></i> The Crypt</h1>
+            <p class="lead">Where the condemned are catalogued &mdash; death row subjects and cadavers, laid open.</p>
+            <a href="#deathRow" class="btn btn-primary mt-3">Enter the Crypt</a>
         </div>
     </header>
 
     <!-- Death Row Section -->
     <section id="deathRow" class="py-5">
         <div class="container">
-            <h2 class="text-center mb-4">Current Biopsies</h2>
+            <div class="text-center mb-4">
+                <span class="section-tag">// Death Row</span>
+                <h2>Current Biopsies</h2>
+            </div>
             <div class="row">
                 <!-- Biopsy 1 -->
                 <div class="col-md-4">
                     <div class="card mb-4 shadow-sm">
-                        <img src="images/company-logo.jpg" class="card-img-top" alt="Company Logo 1">
+                        <div class="crypt-emblem"><i class="bi bi-file-earmark-medical"></i></div>
                         <div class="card-body">
-                            <h5 class="card-title">Biopsy 1</h5>
+                            <h5 class="card-title">Biopsy 1 <span class="status-tag">Autopsied</span></h5>
                             <p class="card-text">Description of Biopsy 1. Put details about the companies financials, year over year.</p>
                             <a href="biopsy-1/detailed-biopsy.html" class="btn btn-primary">View Biopsy</a>
                         </div>
@@ -55,9 +61,9 @@
                 <!-- Biopsy 2 -->
                 <div class="col-md-4">
                     <div class="card mb-4 shadow-sm">
-                        <img src="images/company-logo.jpg" class="card-img-top" alt="Company Logo 2">
+                        <div class="crypt-emblem"><i class="bi bi-file-earmark-medical"></i></div>
                         <div class="card-body">
-                            <h5 class="card-title">Biopsy 2</h5>
+                            <h5 class="card-title">Biopsy 2 <span class="status-tag">Autopsied</span></h5>
                             <p class="card-text">Description of Biopsy 2. Put details about the companies financials, year over year.</p>
                             <a href="biopsy-2/detailed-biopsy.html" class="btn btn-primary">View Biopsy</a>
                         </div>
@@ -66,9 +72,9 @@
                 <!-- Biopsy 3 -->
                 <div class="col-md-4">
                     <div class="card mb-4 shadow-sm">
-                        <img src="images/company-logo.jpg" class="card-img-top" alt="Company Logo 3">
+                        <div class="crypt-emblem"><i class="bi bi-file-earmark-medical"></i></div>
                         <div class="card-body">
-                            <h5 class="card-title">Biopsy 3</h5>
+                            <h5 class="card-title">Biopsy 3 <span class="status-tag">Autopsied</span></h5>
                             <p class="card-text">Description of Biopsy 3. Put details about the companies financials, year over year.</p>
                             <a href="biopsy-3/detailed-biopsy.html" class="btn btn-primary">View Biopsy</a>
                         </div>
@@ -85,18 +91,6 @@
             <div class="row justify-content-center">
                 <div class="col-md-6">
                     <ul class="list-unstyled text-center">
-                        <!-- Social Media Links -->
-                        <li class="mb-3">
-                            <a href="https://twitter.com/yourprofile" target="_blank" class="text-decoration-none">
-                                <i class="bi bi-twitter"></i> Twitter
-                            </a>
-                        </li>
-                        <!-- Chat Server -->
-                        <li class="mb-3">
-                            <a href="https://discord.gg/BcRpQpaC" target="_blank" class="text-decoration-none">
-                                <i class="bi bi-chat-dots"></i> Join Reaper Discord
-                            </a>
-                        </li>
                         <!-- Cryptocurrency Donation -->
                         <li class="mb-3">
                             <i class="bi bi-currency-bitcoin"></i> Donate via Crypto:
@@ -111,12 +105,13 @@
     <!-- Footer -->
     <footer class="bg-dark text-white text-center py-4">
         <div class="container">
-            <p>2024 The Crypt</p>
+            <p>&copy; <span id="year"></span> The Crypt</p>
         </div>
     </footer>
 
     <!-- Rebuilt Bootstrap JS Content -->
     <script src="dist/js/bootstrap.bundle.min.js"></script>
+    <script>document.getElementById("year").textContent = new Date().getFullYear();</script>
 </body>
 </html>
 

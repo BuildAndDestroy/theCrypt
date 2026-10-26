@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Biopsy 3 Review</title>
     <!-- Rebuilt Bootstrap CSS -->
@@ -29,11 +31,11 @@
     </nav>
 
     <!-- Review Section -->
-    <section class="py-5">
+    <section class="py-5"><div class="container text-center"><span class="section-tag">// Case File</span></div>
         <div class="container">
             <h1 class="text-center mb-4">Detailed Review: Biopsy 3</h1>
             <div class="row">
-                <div class="col-md-8 mx-auto">
+                <div class="col-md-8 mx-auto review-body">
                     <p>
                         <strong>Project Overview:</strong> Biopsy 3 is an in-depth analysis of Company X's financial performance over the last fiscal year.
                     </p>
@@ -60,7 +62,7 @@
         <div class="container text-center">
             <h2>Countdown to Event</h2>
             <p>We're counting down to an important milestone:</p>
-            <div id="countdown">00d 00h 00m 00s</div>
+            <div id="countdown" data-target="2027-01-26T23:59:59">00d 00h 00m 00s</div>
         </div>
     </section>
 
@@ -71,18 +73,6 @@
             <div class="row justify-content-center">
                 <div class="col-md-6">
                     <ul class="list-unstyled text-center">
-                        <!-- Social Media Links -->
-                        <li class="mb-3">
-                            <a href="https://twitter.com/yourprofile" target="_blank" class="text-decoration-none">
-                                <i class="bi bi-twitter"></i> Twitter
-                            </a>
-                        </li>
-                        <!-- Chat Server -->
-                        <li class="mb-3">
-                            <a href="https://discord.gg/BcRpQpaC" target="_blank" class="text-decoration-none">
-                                <i class="bi bi-chat-dots"></i> Join Reaper Discord
-                            </a>
-                        </li>
                         <!-- Cryptocurrency Donation -->
                         <li class="mb-3">
                             <i class="bi bi-currency-bitcoin"></i> Donate via Crypto:
@@ -98,7 +88,7 @@
     <!-- Footer -->
     <footer class="bg-dark text-white text-center py-4">
         <div class="container">
-            <p>2024 The Crypt</p>
+            <p>&copy; <span id="year"></span> The Crypt</p>
         </div>
     </footer>
 
@@ -107,5 +97,6 @@
     <!-- Include Countdown JavaScript -->
     <script src="js/countdown.min.js"></script>
 
+    <script>document.getElementById("year").textContent = new Date().getFullYear();</script>
 </body>
 </html>

@@ -1,36 +1,49 @@
-FROM debian:bullseye-slim
+# Production website image: unprivileged nginx, self-contained (no external
+# build stages). Runs as non-root (uid 101) and listens on 8080. Tor runs as
+# a separate sidecar (see kubernetes/deployment-sidecar.yaml) and reaches
+# this nginx over the Pod loopback. Vendor assets come from pinned npm dist;
+# custom CSS/JS are minified at build time.
 
-# Install Tor and Nginx
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    tor nginx && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# ---- Stage 1: build/minify assets ----
+FROM node:22-slim AS assets
 
-# Create hidden service directory
-RUN mkdir -p /var/lib/tor/hidden_service && chmod 700 /var/lib/tor/hidden_service
+WORKDIR /build
+RUN npm install --no-save \
+    bootstrap@5.3.3 \
+    bootstrap-icons@1.11.3 \
+    clean-css-cli@5.6.3 \
+    terser@5.31.6
 
-# Copy website files
-COPY --from=bootstrapicons /root/icons/font /var/www/html/font
-COPY --from=bootstrap-build /root/bootstrap/dist /var/www/html/dist
-COPY --from=customcssjs /root/website/css /var/www/html/css
-COPY --from=customcssjs /root/website/js /var/www/html/biopsy-1/js
-COPY --from=customcssjs /root/website/js /var/www/html/biopsy-2/js
-COPY --from=customcssjs /root/website/js /var/www/html/biopsy-3/js
+COPY website/css/custom-styles.css ./custom-styles.css
+COPY website/js/countdown.js ./countdown.js
+RUN npx cleancss -o custom-styles.min.css custom-styles.css && \
+    npx terser countdown.js -o countdown.min.js --compress --mangle
 
-COPY ./website /var/www/html
-RUN rm /var/www/html/index.nginx-debian.html
+# ---- Stage 2: unprivileged nginx ----
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 
-# Copy custom torrc file
-COPY tor/torrc /etc/tor/torrc
-COPY tor/hidden_service /var/lib/tor/hidden_service
+# COPY needs write access to the (root-owned) web root.
+USER root
 
-# Copy the startup script
-COPY entry.sh /entry.sh
-RUN chmod +x /entry.sh
+# Vendor assets.
+COPY --from=assets /build/node_modules/bootstrap/dist /usr/share/nginx/html/dist
+COPY --from=assets /build/node_modules/bootstrap-icons/font /usr/share/nginx/html/font
 
-# Expose necessary ports
-EXPOSE 80 9050
+# Hand-authored site, then the minified custom assets on top.
+COPY website/ /usr/share/nginx/html/
+COPY --from=assets /build/custom-styles.min.css /usr/share/nginx/html/css/custom-styles.min.css
+COPY --from=assets /build/countdown.min.js /usr/share/nginx/html/biopsy-1/js/countdown.min.js
+COPY --from=assets /build/countdown.min.js /usr/share/nginx/html/biopsy-2/js/countdown.min.js
+COPY --from=assets /build/countdown.min.js /usr/share/nginx/html/biopsy-3/js/countdown.min.js
 
-# Start Tor and Nginx
-CMD ["/entry.sh"]
+# Hardened nginx config (anti-leak headers, loopback-only).
+COPY nginx-hardening.conf /etc/nginx/snippets/crypt-hardening.conf
+COPY nginx-prod.conf /etc/nginx/conf.d/default.conf
+
+# Back to the image's non-root user.
+USER 101
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget -qO- http://127.0.0.1:8080/ >/dev/null 2>&1 || exit 1
+
+EXPOSE 8080
