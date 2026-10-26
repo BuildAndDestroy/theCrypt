@@ -33,14 +33,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Install the Trivy binary directly: the composite trivy-action pins a
+      # setup-trivy tag that upstream removed, so it is unreliable.
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/v0.76.1/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin v0.76.1
       - name: Run Trivy config scan
-        uses: aquasecurity/trivy-action@v0.30.0
-        with:
-          scan-type: config
-          scan-ref: .
-          format: sarif
-          output: trivy-config.sarif
-          exit-code: "0"   # report findings without failing the build
+        run: trivy config --format sarif --output trivy-config.sarif --exit-code 0 .
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
