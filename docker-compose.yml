@@ -1,0 +1,23 @@
+# Local development for The Crypt website.
+#
+#   docker compose up --build      # build + serve on http://localhost:8080
+#   docker compose up -d --build   # same, detached
+#   docker compose down            # stop
+#
+# Without Tor. The whole ./website tree is bind-mounted at the web root, so
+# editing ANY source file (HTML, custom-styles.css, countdown.js) is live:
+# just save and refresh the browser — no rebuild. Only the vendor assets
+# (Bootstrap + icons) are baked into the image; rebuild only if you bump
+# those versions in Dockerfile.dev: `docker compose up -d --build`.
+
+services:
+  website:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:80"
+    volumes:
+      # Live-edit the entire site source without rebuilding.
+      - ./website:/usr/share/nginx/html:ro
+    restart: unless-stopped

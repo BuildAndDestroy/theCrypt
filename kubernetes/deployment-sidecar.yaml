@@ -1,0 +1,123 @@
+# The Crypt — self-contained hidden service (Tor sidecar).
+#
+# One Pod, two containers:
+#   * nginx  — serves the static site, bound to 127.0.0.1:80 only.
+#   * tor    — publishes the hidden service and forwards the onion's port 80
+#              to the nginx container over the Pod's shared loopback.
+#
+# Because both containers share the Pod network namespace, nginx never binds
+# to a routable interface: there is no clearnet surface and nothing for the
+# cluster network to reach. No Service/Ingress is needed — Tor IS the ingress.
+#
+# The onion identity (private key) lives ONLY in a Secret, never in an image
+# or in git. Create it from your existing tor/hidden_service directory:
+#
+#   kubectl -n tor-hidden-ns create secret generic onion-key \
+#     --from-file=hs_ed25519_secret_key=tor/hidden_service/hs_ed25519_secret_key \
+#     --from-file=hs_ed25519_public_key=tor/hidden_service/hs_ed25519_public_key \
+#     --from-file=hostname=tor/hidden_service/hostname
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tor-hidden-ns
+---
+# Pull secret for your private registry. Populate before applying, e.g.:
+#   kubectl -n tor-hidden-ns create secret docker-registry myregistrykey \
+#     --docker-server=registry.yourregistry.com \
+#     --docker-username=USER --docker-password=PASS
+apiVersion: v1
+kind: Secret
+metadata:
+  name: myregistrykey
+  namespace: tor-hidden-ns
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: ""   # <-- fill in, or create via the command above
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: torrc
+  namespace: tor-hidden-ns
+data:
+  torrc: |
+    # Host-only: no SOCKS proxy, we are not a client.
+    SocksPort 0
+    HiddenServiceDir /var/lib/tor/hidden_service
+    HiddenServiceVersion 3
+    # Onion port 80 -> nginx sidecar over Pod loopback.
+    HiddenServicePort 80 127.0.0.1:80
+    Log notice stderr
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thecrypt
+  namespace: tor-hidden-ns
+  labels:
+    app: thecrypt
+spec:
+  # Keep at 1: the onion identity is a single private key. Scaling out means
+  # OnionBalance (multiple descriptors, one .onion) — a deliberate extra step.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: thecrypt
+  template:
+    metadata:
+      labels:
+        app: thecrypt
+    spec:
+      imagePullSecrets:
+      - name: myregistrykey
+      # Stage the onion key into a writable dir with the perms Tor demands
+      # (dir 0700, files 0600). Secret mounts are read-only and too permissive
+      # for Tor, so we copy them into an emptyDir first.
+      initContainers:
+      - name: stage-onion-key
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          cp -L /onion-key/* /var/lib/tor/hidden_service/
+          chmod 700 /var/lib/tor/hidden_service
+          chmod 600 /var/lib/tor/hidden_service/*
+        volumeMounts:
+        - name: onion-key
+          mountPath: /onion-key
+          readOnly: true
+        - name: tor-data
+          mountPath: /var/lib/tor/hidden_service
+      containers:
+      - name: nginx
+        image: registry.yourregistry.com/thecrypt-website
+        ports:
+        - containerPort: 80          # informational; bound to 127.0.0.1 in nginx
+        readinessProbe:
+          tcpSocket: { port: 80 }
+          initialDelaySeconds: 2
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+      - name: tor
+        image: registry.yourregistry.com/thecrypt-tor
+        volumeMounts:
+        - name: torrc
+          mountPath: /etc/tor/torrc
+          subPath: torrc
+          readOnly: true
+        - name: tor-data
+          mountPath: /var/lib/tor/hidden_service
+      volumes:
+      - name: torrc
+        configMap:
+          name: torrc
+      - name: onion-key
+        secret:
+          secretName: onion-key
+          defaultMode: 0400
+      - name: tor-data
+        emptyDir: {}

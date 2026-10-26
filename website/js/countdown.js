@@ -1,26 +1,35 @@
 // Countdown Timer Script
-// Set the date and time for the countdown (editable)
-const targetDate = new Date("12/31/2024 23:59:59").getTime();
+// Each page sets its own deadline via a data-target attribute on the
+// countdown element, e.g.:  <div id="countdown" data-target="2027-01-26T23:59:59">
+// This one shared script then drives whatever date that page declares.
 
-function updateCountdown() {
-    const now = new Date().getTime();
-    const timeLeft = targetDate - now;
+(function () {
+    const el = document.getElementById("countdown");
+    if (!el) return; // no countdown on this page
 
-    if (timeLeft <= 0) {
-        document.getElementById("countdown").innerText = "Time's up!";
-        clearInterval(countdownInterval);
+    const target = new Date(el.dataset.target).getTime();
+    if (isNaN(target)) {
+        el.innerText = "No date set";
         return;
     }
 
-    const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+    function updateCountdown() {
+        const timeLeft = target - Date.now();
 
-    document.getElementById("countdown").innerText = 
-        `${days}d ${hours}h ${minutes}m ${seconds}s`;
-}
+        if (timeLeft <= 0) {
+            el.innerText = "Time's up!";
+            clearInterval(countdownInterval);
+            return;
+        }
 
-// Update the countdown every second
-const countdownInterval = setInterval(updateCountdown, 1000);
-updateCountdown(); // Initial call to display immediately
+        const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+        el.innerText = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    const countdownInterval = setInterval(updateCountdown, 1000);
+    updateCountdown(); // initial call to display immediately
+})();

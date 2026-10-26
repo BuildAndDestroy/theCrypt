@@ -1,0 +1,52 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # Lint every Dockerfile in the repo.
+  hadolint:
+    name: Dockerfile lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile:
+          - Dockerfile
+          - Dockerfile.dev
+          - customcssjs.dockerfile
+          - container-images/bootstrap.dockerfile
+          - container-images/bootstrapicons.dockerfile
+          - container-images/nginx.dockerfile
+          - container-images/tor.dockerfile
+          - container-images/tor-sidecar.dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
+        continue-on-error: true
+
+  # Build the container images (no push).
+  images:
+    name: Build images
+    runs-on: ubuntu-latest
+    env:
+      # Classic builder so the production Dockerfile's `COPY --from=<image>`
+      # stages (built by build_all.sh) resolve from the local image store.
+      DOCKER_BUILDKIT: "0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build dev website image (fast self-contained check)
+        run: docker build -f Dockerfile.dev -t thecrypt-website-dev .
+
+      - name: Build Tor sidecar image
+        run: docker build -f container-images/tor-sidecar.dockerfile -t thecrypt-tor .
+
+      - name: Build full production image stack
+        run: bash build_all.sh

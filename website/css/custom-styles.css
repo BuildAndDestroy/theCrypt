@@ -1,22 +1,239 @@
+/* ============================================================
+   The Crypt — dark "hidden service / morgue" theme
+   Pure CSS, no external fonts or images (Tor-friendly / offline).
+   Loads after Bootstrap, so these overrides win.
+   ============================================================ */
+
+:root {
+    --crypt-bg:      #090a0c;
+    --crypt-bg-2:    #0f1116;
+    --crypt-panel:   #14171e;
+    --crypt-panel-2: #191d26;
+    --crypt-border:  #262c38;
+    --crypt-text:    #c3c9d1;
+    --crypt-muted:   #79828f;
+    --crypt-accent:  #57e39b;   /* spectral / embalming green */
+    --crypt-accent-d:#2fae76;
+    --crypt-blood:   #e5484d;   /* danger / death row */
+    --mono: "Courier New", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* ---------- base ---------- */
 body {
-    background-color: #1e1e2e;
-    color: #c9d1d9;
+    background-color: var(--crypt-bg);
+    background-image:
+        radial-gradient(1100px 500px at 50% -10%, rgba(87,227,155,0.07), transparent 70%),
+        radial-gradient(900px 600px at 100% 100%, rgba(229,72,77,0.05), transparent 70%);
+    background-attachment: fixed;
+    color: var(--crypt-text);
+    letter-spacing: 0.01em;
 }
-.navbar, .footer {
-    background-color: #282c34;
+
+h1, h2, h3, h4, h5, h6 {
+    color: #e8edf2;
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
 }
-.navbar-brand, .nav-link {
-    color: #c9d1d9 !important;
-}
-.navbar-brand:hover, .nav-link:hover {
-    color: #f78166 !important;
-}
+
 a {
-    color: #3d7b9c;
+    color: var(--crypt-accent);
+    text-decoration: none;
+    transition: color .15s ease, text-shadow .15s ease;
 }
 a:hover {
-    color: #519aba;
+    color: #8af3c0;
+    text-shadow: 0 0 10px rgba(87,227,155,0.55);
 }
-h1, h2, h3, h4, h5, h6 {
-    color: #c9d1d9;
+
+code {
+    color: var(--crypt-accent);
+    background: #0b0d11;
+    border: 1px solid var(--crypt-border);
+    border-radius: 6px;
+    padding: .35rem .6rem;
+    word-break: break-all;
+}
+
+/* ---------- navbar ---------- */
+.navbar {
+    background-color: rgba(9,10,12,0.92) !important;
+    border-bottom: 1px solid var(--crypt-border);
+    backdrop-filter: blur(6px);
+}
+.navbar-brand {
+    font-family: var(--mono);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #e8edf2 !important;
+}
+.navbar-brand::before {
+    content: "\F614";                 /* bi-cassette -> swapped below */
+    content: "\2625";                 /* ankh — death/eternal glyph */
+    color: var(--crypt-accent);
+    margin-right: .5rem;
+    text-shadow: 0 0 12px rgba(87,227,155,0.6);
+}
+.navbar-brand:hover { color: #fff !important; }
+.nav-link {
+    color: var(--crypt-muted) !important;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    font-size: .8rem;
+    letter-spacing: 0.12em;
+}
+.nav-link:hover, .nav-link.active {
+    color: var(--crypt-accent) !important;
+    text-shadow: 0 0 10px rgba(87,227,155,0.45);
+}
+
+/* ---------- hero ---------- */
+header.bg-primary {
+    background: linear-gradient(180deg, #0c0e13 0%, var(--crypt-bg) 100%) !important;
+    border-bottom: 1px solid var(--crypt-border);
+    position: relative;
+    overflow: hidden;
+    padding-top: 5rem !important;
+    padding-bottom: 5rem !important;
+}
+header.bg-primary::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0 1px, transparent 1px 3px);
+    pointer-events: none;
+}
+header.bg-primary h1 {
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    text-shadow: 0 0 24px rgba(87,227,155,0.35);
+}
+header.bg-primary .lead {
+    color: var(--crypt-muted);
+    font-family: var(--mono);
+    letter-spacing: 0.08em;
+}
+
+/* ---------- sections ---------- */
+section#deathRow { background: var(--crypt-bg); }
+section#contact.bg-light,
+#timer-section {
+    background: var(--crypt-bg-2) !important;
+    border-top: 1px solid var(--crypt-border);
+    color: var(--crypt-text) !important;
+}
+section#contact.bg-light h2,
+section h2 { color: #e8edf2; }
+
+.section-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: .75rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--crypt-accent);
+    border: 1px solid var(--crypt-border);
+    border-radius: 999px;
+    padding: .25rem .9rem;
+    margin-bottom: 1rem;
+}
+
+/* ---------- cards ---------- */
+.card {
+    background: linear-gradient(180deg, var(--crypt-panel) 0%, var(--crypt-panel-2) 100%);
+    border: 1px solid var(--crypt-border);
+    border-radius: 12px;
+    color: var(--crypt-text);
+    overflow: hidden;
+    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.card:hover {
+    transform: translateY(-4px);
+    border-color: var(--crypt-accent-d);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(87,227,155,0.15);
+}
+.card-title {
+    color: #e8edf2;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+.card-text { color: var(--crypt-muted); }
+
+/* Emblem band replaces the old broken <img> logo */
+.crypt-emblem {
+    height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+        radial-gradient(400px 120px at 50% 120%, rgba(87,227,155,0.12), transparent 70%),
+        #0b0d11;
+    border-bottom: 1px solid var(--crypt-border);
+    color: var(--crypt-accent);
+    font-size: 3.2rem;
+    text-shadow: 0 0 22px rgba(87,227,155,0.5);
+}
+.status-tag {
+    font-family: var(--mono);
+    font-size: .7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--crypt-blood);
+    border: 1px solid rgba(229,72,77,0.4);
+    border-radius: 999px;
+    padding: .1rem .55rem;
+    margin-left: auto;
+}
+
+/* ---------- buttons ---------- */
+.btn-primary {
+    --bs-btn-color: var(--crypt-accent);
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: var(--crypt-accent-d);
+    --bs-btn-hover-color: #06110b;
+    --bs-btn-hover-bg: var(--crypt-accent);
+    --bs-btn-hover-border-color: var(--crypt-accent);
+    --bs-btn-active-bg: var(--crypt-accent);
+    --bs-btn-active-border-color: var(--crypt-accent);
+    font-family: var(--mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: .8rem;
+    font-weight: 700;
+}
+.btn-primary:hover { box-shadow: 0 0 18px rgba(87,227,155,0.4); }
+
+/* ---------- biopsy review body ---------- */
+.review-body {
+    background: linear-gradient(180deg, var(--crypt-panel) 0%, var(--crypt-panel-2) 100%);
+    border: 1px solid var(--crypt-border);
+    border-radius: 12px;
+    padding: 2rem;
+}
+.review-body strong { color: #e8edf2; }
+.review-body h3 {
+    color: var(--crypt-accent);
+    font-size: 1.1rem;
+    margin-top: 1.5rem;
+}
+.review-body ul li { margin-bottom: .4rem; color: var(--crypt-muted); }
+
+/* ---------- countdown ---------- */
+#countdown {
+    font-family: var(--mono);
+    font-size: clamp(1.8rem, 6vw, 3rem);
+    font-weight: 700;
+    color: var(--crypt-accent);
+    letter-spacing: 0.12em;
+    text-shadow: 0 0 24px rgba(87,227,155,0.45);
+    margin-top: 1rem;
+}
+
+/* ---------- footer ---------- */
+footer.bg-dark {
+    background: var(--crypt-bg) !important;
+    border-top: 1px solid var(--crypt-border);
+    color: var(--crypt-muted) !important;
+    font-family: var(--mono);
+    letter-spacing: 0.08em;
 }
