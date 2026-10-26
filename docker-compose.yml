@@ -16,7 +16,7 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     ports:
-      - "8080:80"
+      - "8080:8080"
     volumes:
       # Live-edit the entire site source without rebuilding.
       - ./website:/usr/share/nginx/html:ro

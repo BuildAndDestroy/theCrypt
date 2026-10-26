@@ -4,5 +4,7 @@
 # are needed. Update the tags to match your registry before pushing.
 set -euo pipefail
 
-docker build -t registry.yourregistry.com/thecrypt-website -f Dockerfile .
-docker build -t registry.yourregistry.com/thecrypt-tor -f container-images/tor-sidecar.dockerfile .
+TAG="${TAG:-1.0.0}"
+
+docker build -t "registry.yourregistry.com/thecrypt-website:${TAG}" -f Dockerfile .
+docker build -t "registry.yourregistry.com/thecrypt-tor:${TAG}" -f container-images/tor-sidecar.dockerfile .

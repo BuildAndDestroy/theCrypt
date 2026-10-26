@@ -22,4 +22,8 @@ USER 1000
 # HiddenServiceDir is populated at runtime (initContainer) into an emptyDir.
 EXPOSE 9050
 
+# Liveness: Tor writes the onion hostname once the service is published.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD test -f /var/lib/tor/hidden_service/hostname || exit 1
+
 CMD ["tor", "-f", "/etc/tor/torrc"]

@@ -37,8 +37,10 @@ jobs:
       # setup-trivy tag that upstream removed, so it is unreliable.
       - name: Install Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/v0.76.1/contrib/install.sh \
-            | sh -s -- -b /usr/local/bin v0.76.1
+          # Download the installer to a file first (avoid curl|sh), then run it.
+          curl -sfL -o /tmp/install-trivy.sh \
+            https://raw.githubusercontent.com/aquasecurity/trivy/v0.76.1/contrib/install.sh
+          sh /tmp/install-trivy.sh -b /usr/local/bin v0.76.1
       - name: Run Trivy config scan
         run: trivy config --format sarif --output trivy-config.sarif --exit-code 0 .
       - name: Upload Trivy SARIF
