@@ -6,6 +6,7 @@ import { ROLES, permissionsFor } from "../lib/rbac.js";
 import * as v from "../lib/validate.js";
 import { endSession, requireAuth, startSession } from "../middleware/auth.js";
 import { limitHashing } from "../middleware/limits.js";
+import { secret } from "../lib/secrets.js";
 
 export const authRouter = Router();
 
@@ -94,9 +95,10 @@ authRouter.post("/login", limitHashing, async (req, res, next) => {
     // Admin second factor (enforced whenever ADMIN_TOTP_SECRET is configured).
     // A missing/wrong code fails exactly like a wrong password and counts
     // toward lockout, so the response never confirms a correct password.
-    if (ok && user.role === ROLES.ADMIN && process.env.ADMIN_TOTP_SECRET) {
+    const totpSecret = user.role === ROLES.ADMIN ? secret("ADMIN_TOTP_SECRET") : undefined;
+    if (ok && totpSecret) {
       const totp = req.body?.totp;
-      ok = typeof totp === "string" && verifyTotp(process.env.ADMIN_TOTP_SECRET, totp.trim());
+      ok = typeof totp === "string" && verifyTotp(totpSecret, totp.trim());
     }
 
     if (!ok) {

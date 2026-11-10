@@ -388,6 +388,13 @@ crews, for emulation.
   (every Tor visitor is `127.0.0.1`, so per-IP limits would throttle everyone
   together); password checks are concurrency-capped so a flood can't exhaust
   the Pi. Customers are limited to 20 messages per minute.
+- Request rate limits (`express-rate-limit`), keyed per signed-in user rather
+  than per IP: 120/min per user, 300/min shared by signed-out callers, 1200/min
+  for the whole API. Tune with `RATE_LIMIT_USER` / `RATE_LIMIT_ANON` /
+  `RATE_LIMIT_GLOBAL`.
+- Secrets are mounted as read-only files under `/run/secrets/`, never passed
+  as environment variables. chat-api gets only the MongoDB app user (not root),
+  and nginx and Tor get no credentials at all.
 - Admin TOTP: with `totp_secret` set, the operator login requires an
   authenticator code. A wrong or missing code fails exactly like a wrong
   password, so it never confirms the password was right.
@@ -403,6 +410,9 @@ GitHub Actions run on every push / PR:
 - **Build** — hadolint + builds the dev, production, Tor and chat API images.
 - **SAST** — CodeQL (JavaScript) + Semgrep.
 - **IaC Scan** — Checkov + Trivy (Kubernetes + Dockerfile misconfiguration).
+  Accepted findings are suppressed per file with a written reason:
+  `checkov.io/skip*` annotations in the manifests and `.trivyignore.yaml`.
+- Workflow actions are pinned to commit SHAs (the version is in a comment).
 
 ## Next Steps
 

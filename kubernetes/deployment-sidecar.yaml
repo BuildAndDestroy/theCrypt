@@ -11,7 +11,8 @@
 # Nothing binds a routable interface: no clearnet surface, nothing for the
 # cluster network to reach. No Service/Ingress is needed — Tor IS the ingress.
 #
-# chat-api reads two Secrets (never committed):
+# chat-api reads two Secrets (never committed), mounted as files under
+# /run/secrets/ (not environment variables):
 #   * mongo-auth — see kubernetes/mongodb.yaml (app_username / app_password)
 #   * chat-admin — the predefined operator account:
 #       kubectl -n tor-hidden-ns create secret generic chat-admin \
@@ -163,16 +164,25 @@ spec:
           value: thecrypt-mongo.tor-hidden-ns.svc.cluster.local:27017
         - name: MONGO_DB
           value: thecrypt
-        - name: MONGO_USERNAME
-          valueFrom: { secretKeyRef: { name: mongo-auth, key: app_username } }
-        - name: MONGO_PASSWORD
-          valueFrom: { secretKeyRef: { name: mongo-auth, key: app_password } }
-        - name: ADMIN_EMAIL
-          valueFrom: { secretKeyRef: { name: chat-admin, key: email } }
-        - name: ADMIN_PASSWORD
-          valueFrom: { secretKeyRef: { name: chat-admin, key: password } }
-        - name: ADMIN_TOTP_SECRET
-          valueFrom: { secretKeyRef: { name: chat-admin, key: totp_secret, optional: true } }
+        # Credentials are mounted as files (not env vars), so they never sit
+        # in the process environment. The API reads NAME_FILE for each NAME.
+        - name: MONGO_USERNAME_FILE
+          value: /run/secrets/mongo/app_username
+        - name: MONGO_PASSWORD_FILE
+          value: /run/secrets/mongo/app_password
+        - name: ADMIN_EMAIL_FILE
+          value: /run/secrets/admin/email
+        - name: ADMIN_PASSWORD_FILE
+          value: /run/secrets/admin/password
+        - name: ADMIN_TOTP_SECRET_FILE
+          value: /run/secrets/admin/totp_secret   # optional key
+        volumeMounts:
+        - name: mongo-app-credentials
+          mountPath: /run/secrets/mongo
+          readOnly: true
+        - name: chat-admin
+          mountPath: /run/secrets/admin
+          readOnly: true
         # Bound to loopback, so probe from inside the container.
         readinessProbe:
           exec:
@@ -189,6 +199,7 @@ spec:
         securityContext:
           runAsNonRoot: true
           runAsUser: 10001
+          runAsGroup: 10001
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
           capabilities:
@@ -243,6 +254,19 @@ spec:
         emptyDir: {}
       - name: nginx-cache
         emptyDir: {}
+      # Mounted into chat-api only. Just the app user: chat-api never sees
+      # MongoDB's root credentials.
+      - name: mongo-app-credentials
+        secret:
+          secretName: mongo-auth
+          defaultMode: 0440
+          items:
+          - { key: app_username, path: app_username }
+          - { key: app_password, path: app_password }
+      - name: chat-admin
+        secret:
+          secretName: chat-admin
+          defaultMode: 0440
 ---
 # Deny all inbound to the Pod (nothing should reach it directly — Tor connects
 # outbound to the network and serves over Pod loopback). Allow all egress so

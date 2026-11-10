@@ -1,6 +1,7 @@
 import { User } from "./models/index.js";
 import { hashPassword, verifyPassword } from "./lib/crypto.js";
 import { ROLES } from "./lib/rbac.js";
+import { secret } from "./lib/secrets.js";
 
 /**
  * The admin is predefined: ADMIN_EMAIL / ADMIN_PASSWORD come from a Secret,
@@ -8,14 +9,17 @@ import { ROLES } from "./lib/rbac.js";
  * missing, and re-asserts its role, active flag and password.
  */
 export async function ensureAdmin() {
-  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  const password = process.env.ADMIN_PASSWORD;
+  const email = secret("ADMIN_EMAIL")?.trim().toLowerCase();
+  const password = secret("ADMIN_PASSWORD");
   if (!email || !password) {
     console.warn("ADMIN_EMAIL / ADMIN_PASSWORD not set: no admin account is managed.");
     return;
   }
   if (password.length < 16) {
     throw new Error("ADMIN_PASSWORD must be at least 16 characters");
+  }
+  if (!secret("ADMIN_TOTP_SECRET")) {
+    console.warn("WARNING: ADMIN_TOTP_SECRET is not set; the operator login needs only a password.");
   }
 
   const existing = await User.findOne({ email });

@@ -8,8 +8,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 load_config
 
+# Root credentials are read inside the pod from the mounted mongo-auth files.
+JS='const fs=require("fs");const r=k=>fs.readFileSync("/run/secrets/mongo/"+k,"utf8").replace(/\r?\n$/,"");
+db.getSiblingDB("admin").auth(r("root_username"),r("root_password"));
+load("/docker-entrypoint-initdb.d/init-app-user.js")'
+
 echo "Bootstrapping app user from mongo-auth on the mongo pod..."
-# shellcheck disable=SC2016  # expanded inside the pod
-kubectl_cmd -n "$NAMESPACE" exec statefulset/thecrypt-mongo -c mongo -- sh -c \
-  'mongosh --quiet -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin \
-     /docker-entrypoint-initdb.d/init-app-user.js'
+kubectl_cmd -n "$NAMESPACE" exec statefulset/thecrypt-mongo -c mongo -- mongosh --quiet --norc --eval "$JS"

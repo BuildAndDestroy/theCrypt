@@ -10,3 +10,6 @@ tor/torrc
 kubernetes/config.env
 kubernetes/secrets.local.env
 kubernetes/.rendered/
+
+# Dependencies
+node_modules/

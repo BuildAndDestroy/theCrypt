@@ -9,14 +9,20 @@ import { authRouter } from "./routes/auth.js";
 import { chatRouter } from "./routes/chat.js";
 import { adminRouter } from "./routes/admin.js";
 import { ensureAdmin } from "./bootstrap.js";
+import { secret } from "./lib/secrets.js";
+import { globalLimiter, userLimiter } from "./middleware/limits.js";
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.LISTEN_HOST || "127.0.0.1";
-// Either a full MONGODB_URI, or the parts (as Kubernetes injects them from the
-// mongo-auth Secret) — credentials are URL-encoded here, so any characters work.
+// Either a full MONGODB_URI, or the parts. In Kubernetes the credentials are
+// files from the mongo-auth Secret (MONGO_USERNAME_FILE / MONGO_PASSWORD_FILE).
+// They are URL-encoded here, so any characters work.
 function mongoUri() {
-  if (process.env.MONGODB_URI) return process.env.MONGODB_URI;
-  const { MONGO_HOST, MONGO_DB = "thecrypt", MONGO_USERNAME, MONGO_PASSWORD } = process.env;
+  const uri = secret("MONGODB_URI");
+  if (uri) return uri;
+  const { MONGO_HOST, MONGO_DB = "thecrypt" } = process.env;
+  const MONGO_USERNAME = secret("MONGO_USERNAME");
+  const MONGO_PASSWORD = secret("MONGO_PASSWORD");
   if (!MONGO_HOST || !MONGO_USERNAME || !MONGO_PASSWORD) return null;
   const auth = `${encodeURIComponent(MONGO_USERNAME)}:${encodeURIComponent(MONGO_PASSWORD)}`;
   return `mongodb://${auth}@${MONGO_HOST}/${encodeURIComponent(MONGO_DB)}?authSource=${encodeURIComponent(MONGO_DB)}`;
@@ -49,8 +55,10 @@ api.use((_req, res, next) => {
   next();
 });
 api.use(express.json({ limit: "16kb" }));
+api.use(globalLimiter);   // whole-API ceiling, before any database work
 api.use(requireApiRequest);
 api.use(attachUser);
+api.use(userLimiter);     // per signed-in user (anonymous calls share one bucket)
 api.use("/auth", authRouter);
 api.use("/chat", chatRouter);
 api.use("/admin", adminRouter);

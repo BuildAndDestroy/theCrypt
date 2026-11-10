@@ -7,11 +7,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 load_config
 
-# Credentials are read from the pod's own env (mongo-auth), never passed in argv here.
-# shellcheck disable=SC2016  # expanded inside the pod
-if kubectl_cmd -n "$NAMESPACE" exec statefulset/thecrypt-mongo -c mongo -- sh -c \
-  'mongosh --quiet -u "$MONGO_APP_USERNAME" -p "$MONGO_APP_PASSWORD" --authenticationDatabase thecrypt thecrypt \
-     --eval "db.runCommand({connectionStatus:1}).authInfo.authenticatedUsers.length"' 2>/dev/null | grep -qx 1; then
+# Credentials are read inside the pod from the mounted mongo-auth files, so
+# they never appear in any command line.
+JS='const fs=require("fs");const r=k=>fs.readFileSync("/run/secrets/mongo/"+k,"utf8").replace(/\r?\n$/,"");
+const d=db.getSiblingDB("thecrypt");d.auth(r("app_username"),r("app_password"));
+print(d.runCommand({connectionStatus:1}).authInfo.authenticatedUsers.length)'
+
+if kubectl_cmd -n "$NAMESPACE" exec statefulset/thecrypt-mongo -c mongo -- \
+     mongosh --quiet --norc --eval "$JS" 2>/dev/null | grep -qx 1; then
   echo "App user OK: authenticates to the thecrypt database."
 else
   echo "App user FAILED to authenticate." >&2
