@@ -19,6 +19,7 @@ jobs:
           - Dockerfile
           - Dockerfile.dev
           - container-images/tor-sidecar.dockerfile
+          - chat-api/Dockerfile
     steps:
       - uses: actions/checkout@v4
       - uses: hadolint/hadolint-action@v3.1.0
@@ -41,3 +42,6 @@ jobs:
 
       - name: Build Tor sidecar image
         run: docker build -f container-images/tor-sidecar.dockerfile -t thecrypt-tor .
+
+      - name: Build chat API image
+        run: docker build -t thecrypt-chat-api chat-api

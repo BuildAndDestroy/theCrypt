@@ -32,9 +32,7 @@ COPY --from=assets /build/node_modules/bootstrap-icons/font /usr/share/nginx/htm
 # Hand-authored site, then the minified custom assets on top.
 COPY website/ /usr/share/nginx/html/
 COPY --from=assets /build/custom-styles.min.css /usr/share/nginx/html/css/custom-styles.min.css
-COPY --from=assets /build/countdown.min.js /usr/share/nginx/html/biopsy-1/js/countdown.min.js
-COPY --from=assets /build/countdown.min.js /usr/share/nginx/html/biopsy-2/js/countdown.min.js
-COPY --from=assets /build/countdown.min.js /usr/share/nginx/html/biopsy-3/js/countdown.min.js
+COPY --from=assets /build/countdown.min.js /usr/share/nginx/html/js/countdown.min.js
 
 # Hardened nginx config (anti-leak headers, loopback-only).
 COPY nginx-hardening.conf /etc/nginx/snippets/crypt-hardening.conf

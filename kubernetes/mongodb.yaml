@@ -1,0 +1,206 @@
+# The Crypt — MongoDB for the operator chat (accounts, keys, chat logs).
+#
+# Data lives on a static NFS PersistentVolume. Before applying, replace the
+# two placeholders in the PersistentVolume below:
+#   NFS_SERVER  — your NAS address        (e.g. 192.0.2.10)
+#   NFS_PATH    — the exported share path (e.g. /volume1/thecrypt-db)
+# Every node that may run mongo needs the NFS client: apt install nfs-common
+#
+# mongo:5+ requires ARMv8.2-A. On a Raspberry Pi cluster that means a Pi 5;
+# a Pi 4 (Cortex-A72) crashes with "Illegal instruction". Label the node(s)
+# that can run it:
+#   kubectl label node <pi5-node> thecrypt.io/mongo=true
+#
+# Credentials come from the mongo-auth Secret (never committed):
+#   kubectl -n tor-hidden-ns create secret generic mongo-auth \
+#     --from-literal=root_username=crypt-root \
+#     --from-literal=root_password="$(openssl rand -base64 30)" \
+#     --from-literal=app_username=crypt-app \
+#     --from-literal=app_password="$(openssl rand -base64 30)"
+# Init scripts run ONCE, on an empty data directory. Changing these values
+# later does not change the users already stored on the volume.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: thecrypt-mongo-nfs-pv
+  labels:
+    app: thecrypt-mongo
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain   # chat logs survive PVC deletion
+  storageClassName: ""
+  nfs:
+    server: NFS_SERVER
+    path: NFS_PATH
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: thecrypt-mongo
+  namespace: tor-hidden-ns
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: ""
+  volumeName: thecrypt-mongo-nfs-pv
+  resources:
+    requests:
+      storage: 5Gi
+---
+# First-boot init: create the least-privilege app user (readWrite on the
+# `thecrypt` database only). The mongo entrypoint runs *.js here with the
+# root credentials, on an empty data directory only.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: thecrypt-mongo-init
+  namespace: tor-hidden-ns
+data:
+  init-app-user.js: |
+    const user = process.env.MONGO_APP_USERNAME;
+    const pwd = process.env.MONGO_APP_PASSWORD;
+    if (!user || !pwd) throw new Error("MONGO_APP_USERNAME / MONGO_APP_PASSWORD not set");
+    const appDb = db.getSiblingDB("thecrypt");
+    if (appDb.getUser(user)) {
+      appDb.updateUser(user, { pwd });
+      print("Updated app user " + user);
+    } else {
+      appDb.createUser({ user, pwd, roles: [{ role: "readWrite", db: "thecrypt" }] });
+      print("Created app user " + user);
+    }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: thecrypt-mongo
+  namespace: tor-hidden-ns
+  labels:
+    app: thecrypt-mongo
+  annotations:
+    checkov.io/skip1: CKV_K8S_43=Official image tag; pin by digest at deploy time
+spec:
+  serviceName: thecrypt-mongo
+  replicas: 1
+  selector:
+    matchLabels:
+      app: thecrypt-mongo
+  template:
+    metadata:
+      labels:
+        app: thecrypt-mongo
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        thecrypt.io/mongo: "true"     # an ARMv8.2+ node (Pi 5); see header
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999                # the image's mongodb user
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: mongo
+        image: mongo:7
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom: { secretKeyRef: { name: mongo-auth, key: root_username } }
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom: { secretKeyRef: { name: mongo-auth, key: root_password } }
+        - name: MONGO_APP_USERNAME
+          valueFrom: { secretKeyRef: { name: mongo-auth, key: app_username } }
+        - name: MONGO_APP_PASSWORD
+          valueFrom: { secretKeyRef: { name: mongo-auth, key: app_password } }
+        # `ping` needs no authentication, so the probe carries no credentials.
+        startupProbe:
+          exec:
+            command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+          periodSeconds: 10
+          timeoutSeconds: 15
+          failureThreshold: 30
+        readinessProbe:
+          exec:
+            command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+          periodSeconds: 15
+          timeoutSeconds: 15
+        livenessProbe:
+          exec:
+            command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+          periodSeconds: 30
+          timeoutSeconds: 15
+          failureThreshold: 6
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 999
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests: { cpu: "100m", memory: "256Mi" }
+          limits:   { cpu: "1000m", memory: "1Gi" }
+        volumeMounts:
+        - name: data
+          mountPath: /data/db
+        - name: configdb
+          mountPath: /data/configdb
+        - name: tmp
+          mountPath: /tmp
+        - name: init
+          mountPath: /docker-entrypoint-initdb.d
+          readOnly: true
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: thecrypt-mongo
+      - name: configdb
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+      - name: init
+        configMap:
+          name: thecrypt-mongo-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: thecrypt-mongo
+  namespace: tor-hidden-ns
+spec:
+  clusterIP: None
+  selector:
+    app: thecrypt-mongo
+  ports:
+  - port: 27017
+    targetPort: 27017
+---
+# Only the site Pod (its chat-api container) may connect, and mongo itself
+# may not open any outbound connection.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: thecrypt-mongo
+  namespace: tor-hidden-ns
+spec:
+  podSelector:
+    matchLabels:
+      app: thecrypt-mongo
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: thecrypt
+    ports:
+    - protocol: TCP
+      port: 27017
+  egress: []
