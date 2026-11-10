@@ -119,6 +119,25 @@ An initContainer stages the key into the Tor DataDirectory with the right
 permissions (dir `0700`, files `0600`); `fsGroup` lets it do so without running
 as root.
 
+### Get the onion address
+
+Once the Pod is `2/2 Running`, ask the Tor sidecar for the address it is
+publishing:
+
+```
+kubectl -n tor-hidden-ns exec deploy/thecrypt -c tor -- cat /var/lib/tor/hidden_service/hostname
+```
+
+The same value is stored in the `onion-key` Secret, so you can read it even
+while the Pod is down:
+
+```
+kubectl -n tor-hidden-ns get secret onion-key -o jsonpath='{.data.hostname}' | base64 -d
+```
+
+Open it as `http://<address>.onion` in Tor Browser. A fresh Pod can take a
+minute or two to publish its descriptor before the link resolves.
+
 ### Example
 
 ```

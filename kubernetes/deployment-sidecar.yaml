@@ -43,7 +43,9 @@ data:
   torrc: |
     # Host-only: no SOCKS proxy, we are not a client.
     SocksPort 0
-    DataDirectory /var/lib/tor
+    # A subdir the initContainer creates as the Tor UID (0700): the emptyDir
+    # root itself is owned by root, which Tor refuses as a DataDirectory.
+    DataDirectory /var/lib/tor/data
     HiddenServiceDir /var/lib/tor/hidden_service
     HiddenServiceVersion 3
     # Onion port 80 -> nginx sidecar (unprivileged, 8080) over Pod loopback.
@@ -92,7 +94,8 @@ spec:
         - sh
         - -c
         - |
-          mkdir -p /var/lib/tor/hidden_service
+          mkdir -p /var/lib/tor/data /var/lib/tor/hidden_service
+          chmod 700 /var/lib/tor/data
           cp -L /onion-key/* /var/lib/tor/hidden_service/
           chmod 700 /var/lib/tor/hidden_service
           chmod 600 /var/lib/tor/hidden_service/*
@@ -118,12 +121,16 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 8080     # informational; bound to 127.0.0.1 in nginx
+        # nginx is bound to 127.0.0.1 only, so the kubelet (which probes the
+        # Pod IP) can't reach it with tcpSocket/httpGet; probe from inside.
         readinessProbe:
-          tcpSocket: { port: 8080 }
+          exec:
+            command: ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
           initialDelaySeconds: 2
           periodSeconds: 10
         livenessProbe:
-          tcpSocket: { port: 8080 }
+          exec:
+            command: ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
           initialDelaySeconds: 5
           periodSeconds: 20
         securityContext:
