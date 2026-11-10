@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Crypt &mdash; Operator</title>
+    <link href="/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/css/custom-styles.min.css" rel="stylesheet">
+</head>
+<body class="chat-page">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand" href="/admin/"><i class="bi bi-incognito"></i> Operator</a>
+            <ul id="adminNav" class="navbar-nav me-auto d-none" role="tablist">
+                <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#paneInbox" type="button" role="tab">
+                    <i class="bi bi-chat-dots"></i> Inbox <span id="unreadTotal" class="badge bg-danger d-none"></span></button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#paneKeys" type="button" role="tab" id="keysTab">
+                    <i class="bi bi-key"></i> Keys</button></li>
+            </ul>
+            <div class="ms-auto d-flex align-items-center gap-3">
+                <span id="whoami" class="small text-secondary d-none"></span>
+                <button id="logoutBtn" class="btn btn-sm btn-outline-secondary d-none" type="button">
+                    <i class="bi bi-box-arrow-right"></i> Sign out
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Loading -->
+    <div id="loadingView" class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+    </div>
+
+    <!-- Login -->
+    <main id="loginView" class="container py-5 d-none">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-4">
+                <div class="card crypt-panel">
+                    <div class="card-body p-4">
+                        <h4 class="mb-4 text-center">Operator sign-in</h4>
+                        <form id="loginForm" novalidate>
+                            <div class="mb-3">
+                                <label class="form-label" for="email">Email</label>
+                                <input class="form-control" id="email" name="email" type="email" required autocomplete="username">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="password">Password</label>
+                                <input class="form-control" id="password" name="password" type="password" required autocomplete="current-password">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="totp">Authenticator code <span class="text-secondary">(if enabled)</span></label>
+                                <input class="form-control font-monospace" id="totp" name="totp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code">
+                            </div>
+                            <div id="loginError" class="alert alert-danger d-none" role="alert"></div>
+                            <button class="btn btn-primary w-100" type="submit">Sign in</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Console -->
+    <main id="consoleView" class="container-fluid px-4 py-4 d-none">
+        <div id="consoleError" class="alert alert-danger d-none" role="alert"></div>
+        <div class="tab-content">
+            <!-- Inbox -->
+            <div class="tab-pane fade show active" id="paneInbox" role="tabpanel">
+                <div class="row g-3">
+                    <div class="col-md-4 col-xl-3">
+                        <div class="card crypt-panel h-100">
+                            <div class="card-header">Conversations</div>
+                            <div id="convList" class="list-group list-group-flush conv-list">
+                                <div id="convEmpty" class="p-3 text-secondary small">No customers yet. Issue a key, then share it.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-8 col-xl-9">
+                        <div class="card crypt-panel chat-card">
+                            <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+                                <span id="convTitle" class="text-secondary">Select a conversation</span>
+                                <span id="convDetails" class="small text-secondary"></span>
+                                <button id="toggleActiveBtn" class="btn btn-sm btn-outline-danger ms-auto d-none" type="button"></button>
+                            </div>
+                            <div id="messages" class="chat-log" aria-live="polite"></div>
+                            <div class="card-footer">
+                                <form id="sendForm" class="d-flex gap-2" autocomplete="off">
+                                    <textarea id="sendBody" class="form-control" rows="2" maxlength="4000" placeholder="Reply… (Enter to send, Shift+Enter for a new line)" disabled required></textarea>
+                                    <button id="sendBtn" class="btn btn-primary px-4" type="submit" aria-label="Send" disabled><i class="bi bi-send"></i></button>
+                                </form>
+                                <div id="sendError" class="small text-danger mt-2 d-none"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Keys -->
+            <div class="tab-pane fade" id="paneKeys" role="tabpanel">
+                <div class="card crypt-panel mb-3">
+                    <div class="card-body">
+                        <form id="keyForm" class="row g-2 align-items-end" autocomplete="off">
+                            <div class="col-md-6">
+                                <label class="form-label" for="keyLabel">Label <span class="text-secondary">(who/what this key is for &mdash; only you see it)</span></label>
+                                <input class="form-control" id="keyLabel" name="label" maxlength="120" placeholder="e.g. Biopsy 2 — finance contact">
+                            </div>
+                            <div class="col-md-auto">
+                                <button class="btn btn-primary" type="submit"><i class="bi bi-plus-lg"></i> Generate key</button>
+                            </div>
+                        </form>
+                        <div id="newKey" class="alert alert-success mt-3 mb-0 d-none">
+                            <div class="mb-2"><strong>New key</strong> &mdash; copy it now. It is stored hashed and <strong>cannot be shown again</strong>.</div>
+                            <div class="d-flex gap-2 align-items-center flex-wrap">
+                                <code id="newKeyValue" class="fs-5"></code>
+                                <button id="copyKeyBtn" class="btn btn-sm btn-primary" type="button"><i class="bi bi-clipboard"></i> Copy</button>
+                            </div>
+                        </div>
+                        <div id="keyError" class="alert alert-danger mt-3 mb-0 d-none"></div>
+                    </div>
+                </div>
+                <div class="card crypt-panel">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0 align-middle">
+                            <thead>
+                                <tr><th>Key</th><th>Label</th><th>Created</th><th>Status</th><th></th></tr>
+                            </thead>
+                            <tbody id="keyTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/admin.js"></script>
+</body>
+</html>

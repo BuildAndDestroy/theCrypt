@@ -1,0 +1,17 @@
+# Trivy misconfiguration suppressions, each scoped to one file with a reason.
+# Used by .github/workflows/iac.yml (trivy config --ignorefile .trivyignore.yaml).
+misconfigurations:
+  - id: KSV-0109
+    paths: ["kubernetes/mongodb.yaml"]
+    statement: >-
+      False positive. The thecrypt-mongo-init ConfigMap holds only the init
+      script; it reads credentials from the mounted mongo-auth Secret files and
+      contains no secret values.
+  - id: KSV-0020
+    paths: ["kubernetes/mongodb.yaml"]
+    statement: >-
+      The official mongo image runs as UID 999, which owns the data on the NFS
+      share. A UID above 10000 would require re-owning the export on the NAS.
+  - id: KSV-0021
+    paths: ["kubernetes/mongodb.yaml"]
+    statement: Same as KSV-0020, for GID 999.

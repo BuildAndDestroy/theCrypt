@@ -1,14 +1,18 @@
-# Local development for The Crypt website.
+# Local development for The Crypt website + operator chat.
 #
 #   docker compose up --build      # build + serve on http://localhost:8080
 #   docker compose up -d --build   # same, detached
-#   docker compose down            # stop
+#   docker compose down            # stop (add -v to also wipe the dev database)
 #
 # Without Tor. The whole ./website tree is bind-mounted at the web root, so
-# editing ANY source file (HTML, custom-styles.css, countdown.js) is live:
-# just save and refresh the browser — no rebuild. Only the vendor assets
-# (Bootstrap + icons) are baked into the image; rebuild only if you bump
-# those versions in Dockerfile.dev: `docker compose up -d --build`.
+# editing ANY source file (HTML, custom-styles.css, *.js) is live: just save
+# and refresh. The chat API runs `node --watch` on a bind-mounted ./chat-api/src,
+# so backend edits restart it automatically. Only vendor assets (Bootstrap +
+# icons) and npm dependencies are baked in; rebuild if you change those.
+#
+# Dev-only credentials below. Chat:  http://localhost:8080/chat/
+# Operator console:                  http://localhost:8080/admin/
+#   (admin@crypt.local / dev-admin-password-change-me)
 
 services:
   website:
@@ -16,8 +20,37 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       # Live-edit the entire site source without rebuilding.
       - ./website:/usr/share/nginx/html:ro
+    depends_on:
+      - api
     restart: unless-stopped
+
+  api:
+    build:
+      context: ./chat-api
+    command: ["node", "--watch", "src/index.js"]
+    environment:
+      MONGODB_URI: mongodb://crypt-dev:crypt-dev-password@mongo:27017/thecrypt?authSource=admin
+      LISTEN_HOST: 0.0.0.0          # compose network only; not published to the host
+      ADMIN_EMAIL: admin@crypt.local
+      ADMIN_PASSWORD: dev-admin-password-change-me
+    volumes:
+      - ./chat-api/src:/app/src:ro
+    depends_on:
+      - mongo
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: crypt-dev
+      MONGO_INITDB_ROOT_PASSWORD: crypt-dev-password
+    volumes:
+      - mongo-dev-data:/data/db
+    restart: unless-stopped
+
+volumes:
+  mongo-dev-data:

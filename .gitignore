@@ -5,3 +5,11 @@ tor/torrc
 # OS / editor cruft
 .DS_Store
 *.swp
+
+# Deploy-script config and generated secrets — NEVER commit.
+kubernetes/config.env
+kubernetes/secrets.local.env
+kubernetes/.rendered/
+
+# Dependencies
+node_modules/

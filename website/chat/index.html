@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Crypt &mdash; Secure Channel</title>
+    <link href="/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/css/custom-styles.min.css" rel="stylesheet">
+</head>
+<body class="chat-page">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">The Crypt</a>
+            <div class="ms-auto d-flex align-items-center gap-3">
+                <span id="whoami" class="small text-secondary d-none"></span>
+                <button id="logoutBtn" class="btn btn-sm btn-outline-secondary d-none" type="button">
+                    <i class="bi bi-box-arrow-right"></i> Sign out
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container py-5">
+        <div class="text-center mb-4">
+            <span class="section-tag">// Secure Channel</span>
+            <h2>Speak with the Mortician</h2>
+        </div>
+
+        <!-- Loading -->
+        <div id="loadingView" class="text-center text-secondary py-5">
+            <div class="spinner-border" role="status"></div>
+        </div>
+
+        <!-- Register / sign in -->
+        <div id="authView" class="row justify-content-center d-none">
+            <div class="col-md-7 col-lg-5">
+                <div class="card crypt-panel">
+                    <div class="card-body p-4">
+                        <ul class="nav nav-pills nav-fill mb-4" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="tabRegister" data-bs-toggle="pill" data-bs-target="#paneRegister" type="button" role="tab">
+                                    <i class="bi bi-key"></i> I have a key
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="tabLogin" data-bs-toggle="pill" data-bs-target="#paneLogin" type="button" role="tab">
+                                    <i class="bi bi-door-open"></i> Sign in
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="tab-content">
+                            <!-- Register with key -->
+                            <div class="tab-pane fade show active" id="paneRegister" role="tabpanel">
+                                <form id="registerForm" novalidate autocomplete="off">
+                                    <div class="mb-3">
+                                        <label class="form-label" for="regKey">Unique key</label>
+                                        <input class="form-control font-monospace" id="regKey" name="key" placeholder="XXXXX-XXXXX-XXXXX-XXXXX" required maxlength="64" spellcheck="false">
+                                        <div class="form-text">Paste the key you were given.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="regEmail">Email address</label>
+                                        <input class="form-control" id="regEmail" name="email" type="email" required maxlength="254" autocomplete="email">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="regPhone">Phone <span class="text-secondary">(optional)</span></label>
+                                        <input class="form-control" id="regPhone" name="phone" type="tel" maxlength="25" autocomplete="tel">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="regPassword">Password</label>
+                                        <input class="form-control" id="regPassword" name="password" type="password" required minlength="12" maxlength="200" autocomplete="new-password">
+                                        <div class="form-text">At least 12 characters. You'll use your email and this password to return.</div>
+                                    </div>
+                                    <div id="registerError" class="alert alert-danger d-none" role="alert"></div>
+                                    <button class="btn btn-primary w-100" type="submit">Open channel</button>
+                                </form>
+                            </div>
+                            <!-- Sign in -->
+                            <div class="tab-pane fade" id="paneLogin" role="tabpanel">
+                                <form id="loginForm" novalidate>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="loginEmail">Email address</label>
+                                        <input class="form-control" id="loginEmail" name="email" type="email" required maxlength="254" autocomplete="email">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="loginPassword">Password</label>
+                                        <input class="form-control" id="loginPassword" name="password" type="password" required maxlength="200" autocomplete="current-password">
+                                    </div>
+                                    <div id="loginError" class="alert alert-danger d-none" role="alert"></div>
+                                    <button class="btn btn-primary w-100" type="submit">Sign in</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat -->
+        <div id="chatView" class="row justify-content-center d-none">
+            <div class="col-lg-8">
+                <div class="card crypt-panel chat-card">
+                    <div class="card-header d-flex align-items-center gap-2">
+                        <span class="status-dot"></span>
+                        <span>Operator</span>
+                        <span id="connState" class="ms-auto small text-secondary"></span>
+                    </div>
+                    <div id="messages" class="chat-log" aria-live="polite">
+                        <p id="emptyState" class="text-center text-secondary my-auto">No messages yet. State your business.</p>
+                    </div>
+                    <div class="card-footer">
+                        <form id="sendForm" class="d-flex gap-2" autocomplete="off">
+                            <textarea id="sendBody" class="form-control" rows="2" maxlength="4000" placeholder="Type a message… (Enter to send, Shift+Enter for a new line)" required></textarea>
+                            <button class="btn btn-primary px-4" type="submit" aria-label="Send"><i class="bi bi-send"></i></button>
+                        </form>
+                        <div id="sendError" class="small text-danger mt-2 d-none"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/chat.js"></script>
+</body>
+</html>

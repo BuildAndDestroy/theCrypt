@@ -19,9 +19,10 @@ jobs:
           - Dockerfile
           - Dockerfile.dev
           - container-images/tor-sidecar.dockerfile
+          - chat-api/Dockerfile
     steps:
-      - uses: actions/checkout@v4
-      - uses: hadolint/hadolint-action@v3.1.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf  # v3.1.0
         with:
           dockerfile: ${{ matrix.dockerfile }}
         continue-on-error: true
@@ -31,7 +32,7 @@ jobs:
     name: Build images
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Build dev website image
         run: docker build -f Dockerfile.dev -t thecrypt-website-dev .
@@ -41,3 +42,6 @@ jobs:
 
       - name: Build Tor sidecar image
         run: docker build -f container-images/tor-sidecar.dockerfile -t thecrypt-tor .
+
+      - name: Build chat API image
+        run: docker build -t thecrypt-chat-api chat-api
