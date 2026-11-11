@@ -5,7 +5,7 @@
   "description": "Operator chat backend for The Crypt hidden service",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=24.7"
   },
   "scripts": {
     "start": "node src/index.js",

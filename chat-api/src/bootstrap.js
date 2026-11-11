@@ -1,5 +1,7 @@
-import { User } from "./models/index.js";
-import { hashPassword, verifyPassword } from "./lib/crypto.js";
+import mongoose from "mongoose";
+import { User, userByEmail } from "./models/index.js";
+import { encryptUserFields } from "./lib/fieldcrypto.js";
+import { hashPassword, needsRehash, verifyPassword } from "./lib/crypto.js";
 import { ROLES } from "./lib/rbac.js";
 import { secret } from "./lib/secrets.js";
 
@@ -22,9 +24,10 @@ export async function ensureAdmin() {
     console.warn("WARNING: ADMIN_TOTP_SECRET is not set; the operator login needs only a password.");
   }
 
-  const existing = await User.findOne({ email });
+  const existing = await User.findOne(userByEmail(email));
   if (!existing) {
-    await User.create({ email, passwordHash: await hashPassword(password), role: ROLES.ADMIN });
+    const _id = new mongoose.Types.ObjectId();
+    await User.create({ _id, ...encryptUserFields(_id, { email }), passwordHash: await hashPassword(password), role: ROLES.ADMIN });
     console.log("Admin account created.");
     return;
   }
@@ -32,7 +35,7 @@ export async function ensureAdmin() {
   let changed = false;
   if (existing.role !== ROLES.ADMIN) { existing.role = ROLES.ADMIN; changed = true; }
   if (!existing.active) { existing.active = true; changed = true; }
-  if (!(await verifyPassword(password, existing.passwordHash))) {
+  if (!(await verifyPassword(password, existing.passwordHash)) || needsRehash(existing.passwordHash)) {
     existing.passwordHash = await hashPassword(password);
     changed = true;
   }

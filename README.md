@@ -78,6 +78,11 @@ on edits under `chat-api/src/` (if a save isn't picked up, run
 `docker compose down -v` also wipes the dev database.
 
 ## Deploy to Kubernetes
+The dev API uses a fixed, **public** field-encryption key from
+`docker-compose.yml` (dev only — deployments generate their own) with
+`STRICT_ENCRYPTION=true`. A dev database from before encryption at rest holds
+plaintext the API refuses: `docker compose down -v` to start over.
+
 
 A walkthrough for a fresh cluster. Everything lives in the `tor-hidden-ns`
 namespace. You need:
@@ -97,8 +102,10 @@ live in two **gitignored** files next to the manifests:
 
 | File | Holds | Created by |
 |------|-------|------------|
-| `kubernetes/config.env` | NFS server/path, MongoDB node, registry, image tags, pull-secret login | `cp kubernetes/config.example.env kubernetes/config.env`, then edit |
-| `kubernetes/secrets.local.env` (mode 600) | MongoDB root + app passwords, operator email/password/TOTP | `secrets.sh generate` (new) or `secrets.sh pull` (from an existing cluster) |
+| `kubernetes/config.env` | NFS server/path, MongoDB node, registry, image tags, pull-secret login, `STRICT_ENCRYPTION`, `MONGO_TLS_MODE` / `MONGO_TLS` | `cp kubernetes/config.example.env kubernetes/config.env`, then edit |
+| `kubernetes/secrets.local.env` (mode 600) | MongoDB root + app passwords, operator email/password/TOTP, **`DATA_KEY`** (field-encryption key) | `secrets.sh generate` (new) or `secrets.sh pull` (from an existing cluster) |
+| `kubernetes/mongo-tls/` (keys mode 600) | Private CA + MongoDB server cert (only if you use Mongo TLS) | `mongo-tls.sh generate` |
+| `kubernetes/backups/` (mode 600) | Database dumps taken by `upgrade-encryption.sh` | the upgrade runbook |
 
 ```
 cp kubernetes/config.example.env kubernetes/config.env   # edit it
@@ -120,11 +127,30 @@ Day-2 operations:
 | `secrets.sh apply` | Push edits from `secrets.local.env` to the cluster. Prefer `deploy.sh`, which does this **and** restarts the pods so they pick up the new values. |
 | `secrets.sh pull` | Rebuild `secrets.local.env` from the cluster, e.g. on a new workstation. |
 | `verify-mongo-app-user.sh` / `mongo-bootstrap-app-user.sh` | Check the app user can log in to MongoDB / (re)create it with the current password. |
+| `secrets.sh add-data-key` | Pre-encryption install: add a new `DATA_KEY` to `secrets.local.env` (refuses if one exists in the file or the cluster). |
 
+| `upgrade-encryption.sh` | Runbook: upgrade a running pre-encryption install to encryption at rest ([below](#upgrading-to-encryption-at-rest)). |
+| `mongo-tls.sh generate\|renew\|apply\|status` | Private CA + server cert for MongoDB TLS, and the `mongo-tls` Secret. |
+| `upgrade-mongo-tls.sh` | Runbook: turn on chat-api ↔ MongoDB TLS on a running site, in stages ([below](#mongodb-tls)). |
+
+`config.env` options added with encryption at rest:
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `STRICT_ENCRYPTION` | `true` | `true`: chat-api refuses plaintext rows. `false` only while upgrading from a pre-encryption release. |
+| `MONGO_TLS_MODE` | `disabled` | mongod TLS: `disabled`, `allowTLS`, `preferTLS` (TLS and plaintext), `requireTLS`. Anything but `disabled` needs the `mongo-tls` Secret. |
+| `MONGO_TLS` | `false` | `true`: chat-api connects over TLS and verifies the server cert against the private CA. Needs `MONGO_TLS_MODE` ≠ `disabled`. |
 **Back up `secrets.local.env`** together with `tor/hidden_service/`. The
 MongoDB passwords in it are fixed the first time MongoDB starts.
 
 The numbered steps below are the same process by hand.
+> **`DATA_KEY` is the only key to the chat data.** Every email, phone number
+> and message body in MongoDB is encrypted with it (AES-256-GCM). **Lose it
+> and that data is gone for good** — there is no recovery. Back it up
+> **separately from your database backups and NAS snapshots** (a backup stored
+> with its key protects nothing). `secrets.sh apply` refuses to replace a
+> different key already in the cluster.
+
 
 ### 1. Build and push the images
 
@@ -209,7 +235,9 @@ Notes:
 ### 4. Deploy MongoDB (chat storage)
 
 In `kubernetes/mongodb.yaml`, replace `NFS_SERVER` / `NFS_PATH` in the
-PersistentVolume with your export. Then label the node MongoDB may run on
+PersistentVolume with your export, and delete the blocks between
+`# TLS-BEGIN` and `# TLS-END` (they turn on MongoDB TLS and need the
+`mongo-tls` Secret; `render.sh` handles both from `config.env`). Then label the node MongoDB may run on
 (the Pi 5) and apply:
 
 ```
@@ -222,6 +250,10 @@ kubectl -n tor-hidden-ns get pods -w        # wait for thecrypt-mongo-0 1/1
 `kubernetes.io/hostname: <pi5-node>` in your copy.)
 
 > **Availability:** MongoDB is a single replica pinned to one node. If that
+
+# Field-encryption master key (32 random bytes, base64). BACK IT UP.
+kubectl -n tor-hidden-ns create secret generic chat-data-key \
+  --from-literal=data_key="$(openssl rand -base64 32)"
 > node goes down, the static site keeps serving (its Pod runs elsewhere) but
 > the chat is unavailable until the node returns; nothing is lost, because
 > the data lives on the NFS share. On a Pi cluster where the only Pi 5 is
@@ -236,6 +268,9 @@ thecrypt-mongo-0 | grep "app user"` should print `Created app user crypt-app`.
 
 ```
 kubectl apply -f kubernetes/deployment-sidecar.yaml
+- **Back up `chat-data-key`, apart from database backups.** Without it the
+  encrypted emails, phone numbers and messages cannot be read — ever. The API
+  refuses to start without it.
 kubectl -n tor-hidden-ns rollout status deploy/thecrypt
 ```
 
@@ -319,7 +354,11 @@ address stays the same as long as the `onion-key` Secret does.
 
 | Symptom | Cause / fix |
 |---------|-------------|
-| Pod stuck in `CreateContainerConfigError` | A Secret is missing — `kubectl -n tor-hidden-ns describe pod <pod>` names it (step 3). |
+| Pod stuck in `CreateContainerConfigError` / `ContainerCreating` | A Secret is missing — `kubectl -n tor-hidden-ns describe pod <pod>` names it (step 3; `chat-data-key`: `secrets.sh apply`; `mongo-tls`: `mongo-tls.sh apply`). |
+| chat-api exits: `DATA_KEY is not set` | No `chat-data-key` Secret. New install: `secrets.sh apply`. Pre-encryption install: `upgrade-encryption.sh`. |
+| chat-api exits: `unencrypted (pre-upgrade) rows found while STRICT_ENCRYPTION=true` | Upgraded without migrating. Set `STRICT_ENCRYPTION=false`, `deploy.sh`, run `migrate.js` (upgrade runbook step 5). |
+| `secrets.sh apply` says `REFUSING: DATA_KEY ... differs` | Your file's key isn't the one the data uses. `secrets.sh pull` — never force a new key. |
+| chat-api `MongoDB connect failed` after enabling TLS | `MONGO_TLS=true` but mongod still `disabled`, or the cert doesn't match the namespace (re-run `mongo-tls.sh renew` after changing `NAMESPACE`). Roll back with `MONGO_TLS=false`. |
 | `ImagePullBackOff` | Wrong `image:` path/tag, or `myregistrykey` missing/wrong. |
 | `thecrypt-mongo-0` stays `Pending` | No node carries `thecrypt.io/mongo=true`, or the PV/PVC didn't bind (`kubectl -n tor-hidden-ns get pvc`). |
 | MongoDB crashes with "Illegal instruction" | It landed on a CPU older than ARMv8.2 (Pi 4). Label a Pi 5 instead. |
@@ -329,6 +368,17 @@ address stays the same as long as the `onion-key` Secret does.
 | Onion doesn't resolve | Wait a couple of minutes after a restart; check `kubectl -n tor-hidden-ns logs deploy/thecrypt -c tor`. |
 
 ## Death Row biopsies
+
+**Data at rest:** emails, phone numbers and message bodies are encrypted by
+chat-api before they reach MongoDB (AES-256-GCM, key in the `chat-data-key`
+Secret; emails are looked up through an HMAC blind index), so the NFS share,
+NAS snapshots and database dumps hold ciphertext. This does not protect
+against someone who controls the chat-api Pod or can read the cluster's
+Secrets. Passwords are hashed with Argon2id.
+
+**Data in transit inside the cluster:** chat-api ↔ MongoDB can use TLS with a
+private CA ([MongoDB TLS](#mongodb-tls)); the NetworkPolicy already limits who
+can connect.
 
 The Death Row grid on the home page and the `biopsy-N/` case files are
 generated, not hand-written:
@@ -346,6 +396,82 @@ python3 tools/generate_biopsies.py --count 80 --expired 7 --seed 42 --base-date 
   zip (about 3 MB) is junk in a Windows-looking tree (`C$/Users/...`,
   `Shares/Finance/...`): random bytes behind `.docx`/`.xlsx`/`.pdf` names and
   lorem-ipsum text and CSV. A `_README_SIMULATED_DATA.txt` marker at its root
+Coming from a release **before encryption at rest**? Don't just bump the tag —
+follow [Upgrading to encryption at rest](#upgrading-to-encryption-at-rest).
+
+### Upgrading to encryption at rest
+
+For a site that is already running a pre-encryption release. The runbook asks
+before every step and can resume (`--from-step N`):
+
+```
+kubernetes/scripts/upgrade-encryption.sh            # --help for details
+```
+
+1. **Preflight** — config/secrets files present, cluster reachable, pods up.
+2. **Backup** — `mongodump --archive --gzip` as MongoDB root to
+   `kubernetes/backups/thecrypt-pre-encryption-<UTC>.archive.gz` (mode 600,
+   gitignored). Credentials are read inside the pod and passed to mongodump in
+   a temporary config file, never on a command line. **This backup is
+   plaintext** — keep it safe and delete it once the upgrade is verified.
+   Roll back with `upgrade-encryption.sh --restore <file>`.
+3. **Key** — `secrets.sh add-data-key` + `secrets.sh apply` create the
+   `chat-data-key` Secret. Back up `secrets.local.env` now.
+4. **Transition deploy** — `STRICT_ENCRYPTION=false` in `config.env` (the new
+   API then still reads the old plaintext rows), push the new chat-api image
+   (`build-push.sh chat-api` with a new `CHAT_API_TAG`), `deploy.sh`.
+5. **Migrate** — `node src/migrate.js --dry-run`, then the real run, then
+   `--check` (exit 0 = no plaintext left), all inside the chat-api container:
+   `kubectl -n tor-hidden-ns exec deployment/thecrypt -c chat-api -- node src/migrate.js`.
+   It is idempotent; re-run it if interrupted.
+6. **Verify** — log in as the operator and open a conversation; the script
+   also checks in MongoDB that stored bodies and emails start with `v1:`.
+7. **Strict mode** — `STRICT_ENCRYPTION=true`, `deploy.sh`, `--check` again.
+8. **Clean up** — delete the plaintext backup (`shred -u`), prune NAS
+   snapshots of the database share taken before the upgrade (they hold
+   plaintext), confirm `DATA_KEY` is backed up. Existing scrypt password
+   hashes become Argon2id at each user's next login.
+
+**Key rotation** (later, optional): in `secrets.local.env` move the current
+value to `DATA_KEY_PREVIOUS=`, set a new `DATA_KEY=` (`openssl rand -base64
+32`), run `deploy.sh`, then `node src/migrate.js` in the chat-api container to
+re-encrypt everything. Once `--check` passes, remove `DATA_KEY_PREVIOUS` and
+deploy again.
+
+### MongoDB TLS
+
+Encrypts chat-api ↔ MongoDB traffic inside the cluster, with a private CA
+(EC P-256; the CA key never enters the cluster). It is a separate maintenance
+window from the encryption upgrade; each MongoDB restart is a short chat
+outage. On a running site:
+
+```
+kubernetes/scripts/upgrade-mongo-tls.sh             # --help for details
+```
+
+1. `mongo-tls.sh generate` writes `kubernetes/mongo-tls/` (CA + server cert,
+   SAN `thecrypt-mongo.<ns>.svc.cluster.local`, `thecrypt-mongo.<ns>.svc`,
+   `thecrypt-mongo`, `localhost`, `127.0.0.1`); `mongo-tls.sh apply` creates
+   the `mongo-tls` Secret (`ca.crt`, `server.pem`). MongoDB gets both; chat-api
+   only `ca.crt`.
+2. `MONGO_TLS_MODE=preferTLS` + `deploy.sh` — mongod accepts TLS and plaintext.
+3. `MONGO_TLS=true` + `deploy.sh` — chat-api connects with TLS, verifying the
+   server certificate and hostname.
+4. `MONGO_TLS_MODE=requireTLS` + `deploy.sh` — plaintext refused (the script
+   checks).
+
+Rollback at any point: `MONGO_TLS=false`, `MONGO_TLS_MODE=preferTLS` (or
+`disabled`), `deploy.sh`. A fresh install can start with TLS: run
+`mongo-tls.sh generate`, set `MONGO_TLS_MODE=requireTLS` and `MONGO_TLS=true`,
+then `deploy.sh` (it creates the Secret from `kubernetes/mongo-tls/`).
+
+The server cert lasts ~27 months: `mongo-tls.sh status` shows the date; renew
+with `mongo-tls.sh renew && mongo-tls.sh apply && deploy.sh`. Back up
+`kubernetes/mongo-tls/ca.key` with `secrets.local.env`. Probes and the
+helper scripts connect over TLS automatically whenever the Secret is mounted.
+mongod logs a "No SSL certificate provided by peer" warning per connection
+(clients need no certificate; that is expected).
+
   says it is simulated.
 - Runs are seeded: the same arguments give the same pages and an identical
   zip. Re-run it, then rebuild the website image, to change the set. Tiles are
@@ -384,7 +510,8 @@ crews, for emulation.
 - Sessions: random opaque token in an `HttpOnly; SameSite=Strict` cookie,
   hashed at rest, 12 h expiry. State-changing calls also require an
   `X-Crypt-Request` header (CSRF).
-- Passwords: scrypt. Logins lock for 15 min after 5 failures **per account**
+- Passwords: Argon2id (64 MiB per hash; older scrypt hashes upgrade on the
+  next login). Logins lock for 15 min after 5 failures **per account**
   (every Tor visitor is `127.0.0.1`, so per-IP limits would throttle everyone
   together); password checks are concurrency-capped so a flood can't exhaust
   the Pi. Customers are limited to 20 messages per minute.
@@ -421,3 +548,5 @@ GitHub Actions run on every push / PR:
 * ~~Add javascript, python, or php to make the website more dynamic~~ ✅ (operator chat: Node + MongoDB)
 * Vanity onion address (e.g. with `mkp224o`)
 * Push new messages (SSE/WebSocket) instead of polling
+- Emails, phone numbers and message bodies are encrypted at rest (AES-256-GCM,
+  `chat-data-key` Secret); see [Security of the deployment](#security-of-the-deployment).

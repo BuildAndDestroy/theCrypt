@@ -5,7 +5,8 @@ import { generateAccessKey, hashAccessKey } from "../lib/crypto.js";
 import { PERMISSIONS, ROLES } from "../lib/rbac.js";
 import * as v from "../lib/validate.js";
 import { requirePermission } from "../middleware/auth.js";
-import { allowSend, listMessages, MAX_MESSAGE, serializeMessage } from "./chat.js";
+import { allowSend, listMessages, MAX_MESSAGE, newMessage, serializeMessage } from "./chat.js";
+import { accessKeyField, decrypt, decryptUser, encrypt } from "../lib/fieldcrypto.js";
 
 export const adminRouter = Router();
 
@@ -20,10 +21,10 @@ keysRouter.get("/", async (_req, res, next) => {
       keys: keys.map((k) => ({
         id: String(k._id),
         hint: k.hint,
-        label: k.label ?? "",
+        label: decrypt(k.label, accessKeyField(k._id)) ?? "",
         createdAt: k.createdAt,
         redeemedAt: k.redeemedAt ?? null,
-        redeemedBy: k.redeemedBy?.email ?? null,
+        redeemedBy: k.redeemedBy ? decryptUser(k.redeemedBy).email : null,
         revokedAt: k.revokedAt ?? null,
       })),
     });
@@ -37,13 +38,15 @@ keysRouter.post("/", async (req, res, next) => {
   try {
     const label = v.text(req.body, "label", { required: false, max: 120 });
     const key = generateAccessKey();
+    const _id = new mongoose.Types.ObjectId();
     const doc = await AccessKey.create({
+      _id,
       keyHash: hashAccessKey(key),
       hint: key.slice(-4),
-      label,
+      label: encrypt(label, accessKeyField(_id)),
       createdBy: req.user._id,
     });
-    res.status(201).json({ key, id: String(doc._id), hint: doc.hint, label: doc.label ?? "" });
+    res.status(201).json({ key, id: String(doc._id), hint: doc.hint, label: label ?? "" });
   } catch (err) {
     next(err);
   }
@@ -87,12 +90,13 @@ convRouter.get("/", async (_req, res, next) => {
     const byCustomer = new Map(stats.map((s) => [String(s._id), s]));
     const conversations = customers.map((c) => {
       const s = byCustomer.get(String(c._id));
+      const { email, phone } = decryptUser(c);
       return {
         customerId: String(c._id),
-        email: c.email,
-        phone: c.phone ?? null,
+        email,
+        phone: phone ?? null,
         active: c.active,
-        keyLabel: c.accessKey?.label ?? "",
+        keyLabel: c.accessKey ? decrypt(c.accessKey.label, accessKeyField(c.accessKey._id)) ?? "" : "",
         keyHint: c.accessKey?.hint ?? "",
         registeredAt: c.createdAt,
         unread: s?.unread ?? 0,
@@ -134,14 +138,14 @@ convRouter.post("/:customerId/messages", async (req, res, next) => {
     if (!customer) return;
     const body = v.text(req.body, "body", { max: MAX_MESSAGE });
     if (!allowSend(req.user._id)) return res.status(429).json({ error: "Slow down." });
-    const m = await Message.create({
+    const message = await newMessage({
       customer: customer._id,
       from: "operator",
       author: req.user._id,
       body,
       seenByOperator: true,
     });
-    res.status(201).json({ message: serializeMessage(m) });
+    res.status(201).json({ message });
   } catch (err) {
     next(err);
   }

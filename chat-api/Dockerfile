@@ -1,13 +1,14 @@
 # The Crypt — operator chat API.
-# Pure-JS dependencies only (no native modules), so it cross-builds cleanly
-# for the Pi cluster (linux/arm64). Runs as non-root with a read-only root FS.
+# Pure-JS dependencies only (no native modules; Argon2id comes from Node 24's
+# built-in crypto), so it cross-builds cleanly for the Pi cluster
+# (linux/arm64). Runs as non-root with a read-only root FS.
 
-FROM node:22-slim AS deps
+FROM node:24-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
-FROM node:22-slim
+FROM node:24-slim
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
