@@ -10,6 +10,10 @@ tor/
 kubernetes/config.env
 kubernetes/secrets.local.env
 kubernetes/.rendered/
+# Mongo TLS CA + server keys (mongo-tls.sh) and database backups (PLAINTEXT
+# before the encryption upgrade) — NEVER commit.
+kubernetes/mongo-tls/
+kubernetes/backups/
 
 # Dependencies
 node_modules/

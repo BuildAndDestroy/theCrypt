@@ -14,4 +14,4 @@ db.getSiblingDB("admin").auth(r("root_username"),r("root_password"));
 load("/docker-entrypoint-initdb.d/init-app-user.js")'
 
 echo "Bootstrapping app user from mongo-auth on the mongo pod..."
-kubectl_cmd -n "$NAMESPACE" exec statefulset/thecrypt-mongo -c mongo -- mongosh --quiet --norc --eval "$JS"
+mongosh_pod --eval "$JS"   # TLS-aware; see lib.sh

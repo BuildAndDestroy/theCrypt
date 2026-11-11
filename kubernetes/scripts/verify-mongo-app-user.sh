@@ -13,8 +13,8 @@ JS='const fs=require("fs");const r=k=>fs.readFileSync("/run/secrets/mongo/"+k,"u
 const d=db.getSiblingDB("thecrypt");d.auth(r("app_username"),r("app_password"));
 print(d.runCommand({connectionStatus:1}).authInfo.authenticatedUsers.length)'
 
-if kubectl_cmd -n "$NAMESPACE" exec statefulset/thecrypt-mongo -c mongo -- \
-     mongosh --quiet --norc --eval "$JS" 2>/dev/null | grep -qx 1; then
+# mongosh_pod (lib.sh) uses TLS when the mongo-tls Secret is mounted.
+if mongosh_pod --eval "$JS" 2>/dev/null | grep -qx 1; then
   echo "App user OK: authenticates to the thecrypt database."
 else
   echo "App user FAILED to authenticate." >&2
