@@ -27,6 +27,7 @@ COPY nginx-dev.conf /etc/nginx/conf.d/default.conf
 # Fallback copy of the site if run without the bind-mount; the mount
 # overlays this at runtime for live editing.
 COPY website/ /usr/share/nginx/html/
+COPY dumps/ /usr/share/nginx/dumps/
 
 USER 101
 

@@ -76,12 +76,22 @@
         </div>
     </section>
 
-    <section class="py-5" id="timer-section">
+    <section class="py-5 biopsy-state" id="timer-section" data-biopsy="4">
         <div class="container text-center">
-            <h2>Countdown to Publication</h2>
-            <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
+            <div class="when-pending">
+                <h2>Countdown to Publication</h2>
+                <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
+            </div>
+            <div class="when-expired">
+                <h2>Time's up</h2>
+                <p>This subject did not come to the table.</p>
+            </div>
             <div id="countdown" class="" data-countdown="2026-11-30T00:00:00Z">--d --h --m --s</div>
-
+            <div class="leak-download mt-4 when-expired">
+                <p class="text-secondary mb-3">The deadline passed. The dataset has been published.</p>
+                <a class="btn btn-primary btn-lg" href="files/kessler-aune-dump.zip" download><i class="bi bi-file-earmark-zip"></i> Download archive</a>
+                <div class="small text-secondary mt-3 font-monospace">kessler-aune-dump.zip &middot; 3.4 MB &middot; 133 files<br>SHA-256 01c9682d02952dd1e3fe1f045e1b742019ca3a305f611d4fb4209e6760222646</div>
+            </div>
         </div>
     </section>
 

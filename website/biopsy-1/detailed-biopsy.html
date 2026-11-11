@@ -83,12 +83,22 @@
         </div>
     </section>
 
-    <section class="py-5" id="timer-section">
+    <section class="py-5 biopsy-state" id="timer-section" data-biopsy="1">
         <div class="container text-center">
-            <h2>Countdown to Publication</h2>
-            <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
+            <div class="when-pending">
+                <h2>Countdown to Publication</h2>
+                <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
+            </div>
+            <div class="when-expired">
+                <h2>Time's up</h2>
+                <p>This subject did not come to the table.</p>
+            </div>
             <div id="countdown" class="" data-countdown="2026-12-09T00:00:00Z">--d --h --m --s</div>
-
+            <div class="leak-download mt-4 when-expired">
+                <p class="text-secondary mb-3">The deadline passed. The dataset has been published.</p>
+                <a class="btn btn-primary btn-lg" href="files/tenmarch-water-dump.zip" download><i class="bi bi-file-earmark-zip"></i> Download archive</a>
+                <div class="small text-secondary mt-3 font-monospace">tenmarch-water-dump.zip &middot; 3.0 MB &middot; 133 files<br>SHA-256 df482146afa5a1317843f396a4e9e2bc6a4add12d8e0fc746ae5217a4ccf0644</div>
+            </div>
         </div>
     </section>
 

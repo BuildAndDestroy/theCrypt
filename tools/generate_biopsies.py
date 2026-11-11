@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate The Crypt's biopsy pages, the Death Row tiles, and the junk leak archive.
+"""Generate The Crypt's biopsy pages, the Death Row tiles, and the junk leak archives.
 
     python3 tools/generate_biopsies.py                 # 9 biopsies, deadlines from today
     python3 tools/generate_biopsies.py --count 20 --expired 4 --seed 7
@@ -8,7 +8,14 @@
 Writes (overwriting):
   website/biopsy-N/detailed-biopsy.html        one case file per biopsy
   website/index.html                           tiles between the BIOPSIES markers
-  website/biopsy-E/files/<archive>.zip         junk "leak" for the expired biopsy
+  website/biopsies.json                        manifest: default deadlines + archive names
+  dumps/biopsy-N/<archive>.zip                 junk "leak" for EVERY biopsy
+
+The archives live outside the web root. nginx serves /biopsy-N/files/<archive>
+only once that biopsy's deadline has passed: the generated default from the
+manifest, or the deadline an operator set in the admin console (chat-api
+answers nginx's auth_request). Pages carry both states (pending / published);
+js/countdown.js switches between them from the live deadlines.
 
 Everything is seeded: the same arguments always produce the same pages and the
 same archive (byte for byte). Subjects are anonymous codenames + a generic
@@ -32,6 +39,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "website"
+DUMPS = ROOT / "dumps"
 BEGIN, END = "<!-- BIOPSIES:BEGIN -->", "<!-- BIOPSIES:END -->"
 
 SECTORS = [
@@ -270,10 +278,16 @@ PAGE = """<!DOCTYPE html>
         </div>
     </section>
 
-    <section class="py-5" id="timer-section">
+    <section class="py-5 biopsy-state{state_class}" id="timer-section" data-biopsy="{n}">
         <div class="container text-center">
-            <h2>{timer_heading}</h2>
-            <p>{timer_text}</p>
+            <div class="when-pending">
+                <h2>Countdown to Publication</h2>
+                <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
+            </div>
+            <div class="when-expired">
+                <h2>Time's up</h2>
+                <p>This subject did not come to the table.</p>
+            </div>
             <div id="countdown" class="{countdown_class}" data-countdown="{deadline}">{countdown_initial}</div>
 {download}
         </div>
@@ -313,20 +327,20 @@ PAGE = """<!DOCTYPE html>
 </html>
 """
 
-DOWNLOAD = """            <div class="leak-download mt-4">
+DOWNLOAD = """            <div class="leak-download mt-4 when-expired">
                 <p class="text-secondary mb-3">The deadline passed. The dataset has been published.</p>
                 <a class="btn btn-primary btn-lg" href="files/{file}" download><i class="bi bi-file-earmark-zip"></i> Download archive</a>
                 <div class="small text-secondary mt-3 font-monospace">{file} &middot; {size} &middot; {files} files<br>SHA-256 {sha}</div>
             </div>"""
 
 TILE = """                <div class="col-sm-6 col-lg-4">
-                    <div class="card biopsy-tile mb-4 shadow-sm{tile_class}">
+                    <div class="card biopsy-tile mb-4 shadow-sm{tile_class}" data-biopsy="{n}">
                         <div class="crypt-emblem">{emblem}</div>
                         <div class="card-body">
-                            <h5 class="card-title">{title} <span class="status-tag">{status}</span></h5>
+                            <h5 class="card-title">{title} <span class="status-tag"><span class="when-pending">Pending</span><span class="when-expired">Published</span></span></h5>
                             <p class="card-text small mb-2">{subtitle}</p>
                             <div class="tile-countdown{countdown_class}" data-countdown="{deadline}">{countdown_initial}</div>
-                            <a href="biopsy-{n}/" class="btn btn-primary btn-sm mt-3 stretched-link">{button}</a>
+                            <a href="biopsy-{n}/" class="btn btn-primary btn-sm mt-3 stretched-link"><span class="when-pending">View Biopsy</span><span class="when-expired">Download data</span></a>
                         </div>
                     </div>
                 </div>"""
@@ -376,11 +390,9 @@ def render(subjects: list[dict]) -> None:
     for s in subjects:
         iso = s["deadline"].strftime("%Y-%m-%dT%H:%M:%SZ")
         exp = s["expired"]
-        download = ""
-        archive = s.get("archive")
-        if exp and archive:
-            download = DOWNLOAD.format(file=esc(archive["file"]), size=human_size(archive["size"]),
-                                       files=archive["files"], sha=archive["sha"])
+        archive = s["archive"]
+        download = DOWNLOAD.format(file=esc(archive["file"]), size=human_size(archive["size"]),
+                                   files=archive["files"], sha=archive["sha"])
         c = s["named"]
         profile, extra = profile_html(s)
         page = PAGE.format(
@@ -390,8 +402,7 @@ def render(subjects: list[dict]) -> None:
             profile=profile, extra=extra,
             findings="\n".join(f"                        <li>{esc(f)}</li>" for f in s["findings"]),
             note=esc(s["note"]),
-            timer_heading="Time's up" if exp else "Countdown to Publication",
-            timer_text="This subject did not come to the table." if exp else "Unless we hear from the subject, the data is published when the timer runs out:",
+            state_class=" expired" if exp else "",
             countdown_class="expired" if exp else "",
             deadline=iso,
             countdown_initial="Time's up!" if exp else "--d --h --m --s",
@@ -400,8 +411,6 @@ def render(subjects: list[dict]) -> None:
         d = WEB / f"biopsy-{s['n']}"
         d.mkdir(parents=True, exist_ok=True)
         (d / "detailed-biopsy.html").write_text(page)
-        if not exp and (d / "files").exists():
-            shutil.rmtree(d / "files")
 
         icon = "bi-file-earmark-zip" if exp else "bi-file-earmark-medical"
         tiles.append(TILE.format(
@@ -411,11 +420,9 @@ def render(subjects: list[dict]) -> None:
                       else f"{esc(s['code'])} &middot; {esc(s['sector'])} &middot; {esc(s['region'])}"),
             emblem=(f'<span class="subject-mono">{esc(c["monogram"])}</span>' if c else f'<i class="bi {icon}"></i>'),
             tile_class=(" expired" if exp else "") + (" named" if c else ""),
-            status="Published" if exp else "Pending",
             countdown_class=" expired" if exp else "",
             deadline=iso,
             countdown_initial="Time's up!" if exp else "--d --h --m --s",
-            button="Download data" if exp else "View Biopsy",
         ))
 
     index = WEB / "index.html"
@@ -425,6 +432,23 @@ def render(subjects: list[dict]) -> None:
     head, rest = src.split(BEGIN, 1)
     _, tail = rest.split(END, 1)
     index.write_text(head + BEGIN + "\n" + "\n".join(tiles) + "\n                " + END + tail)
+
+
+def write_manifest(subjects: list[dict], base: dt.datetime, seed: int) -> None:
+    """website/biopsies.json: the default deadlines chat-api and countdown.js start from."""
+    data = {
+        "version": 1,
+        "base": base.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "seed": seed,
+        "biopsies": [{
+            "n": s["n"],
+            "title": s["named"]["short_name"] if s["named"] else f"Biopsy {s['n']} ({s['code']})",
+            "deadline": s["deadline"].strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "archive": {"file": s["archive"]["file"], "size": s["archive"]["size"],
+                        "sha256": s["archive"]["sha"], "files": s["archive"]["files"]},
+        } for s in subjects],
+    }
+    (WEB / "biopsies.json").write_text(json.dumps(data, indent=2) + "\n")
 
 
 def main() -> None:
@@ -454,13 +478,19 @@ def main() -> None:
             raise SystemExit(f"{c['name']}: slot {c['slot']} is outside 1..{args.count}")
     apply_named(subjects, named, base)
 
-    # Every expired subject gets its own junk archive (seeded per slot).
+    # Every subject gets its own junk archive (seeded per slot), outside the
+    # web root; nginx releases it when the deadline passes. Old in-web-root
+    # copies (website/biopsy-N/files/) and stale dump folders are removed.
+    for old in list(WEB.glob("biopsy-*/files")):
+        shutil.rmtree(old)
+    for old in DUMPS.glob("biopsy-*"):
+        m = re.fullmatch(r"biopsy-(\d+)", old.name)
+        if m and int(m.group(1)) > args.count and old.is_dir():
+            shutil.rmtree(old)
     for s in subjects:
-        target = WEB / f"biopsy-{s['n']}" / "files"
+        target = DUMPS / f"biopsy-{s['n']}"
         if target.exists():
             shutil.rmtree(target)
-        if not s["expired"]:
-            continue
         c = s["named"]
         stem = c["domain"].split(".")[0] if c else s["code"].lower()
         file = f"{stem}-dump.zip"
@@ -469,6 +499,7 @@ def main() -> None:
         s["archive"] = {"file": file, "size": size, "sha": sha, "files": files}
 
     render(subjects)
+    write_manifest(subjects, base, args.seed)
     print(f"Generated {args.count} biopsies (deadlines from {base:%Y-%m-%d %H:00} UTC).")
     for s in subjects:
         who = s["named"]["name"] if s["named"] else s["code"]
@@ -476,7 +507,7 @@ def main() -> None:
         extra = ""
         if s.get("archive"):
             a = s["archive"]
-            extra = f" -> files/{a['file']} ({human_size(a['size'])}, {a['files']} files)"
+            extra = f" -> dumps/biopsy-{s['n']}/{a['file']} ({human_size(a['size'])}, {a['files']} files)"
         print(f"  {s['n']:>2}. {who}: {state}{extra}")
 
 if __name__ == "__main__":

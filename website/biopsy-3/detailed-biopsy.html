@@ -78,12 +78,22 @@
         </div>
     </section>
 
-    <section class="py-5" id="timer-section">
+    <section class="py-5 biopsy-state" id="timer-section" data-biopsy="3">
         <div class="container text-center">
-            <h2>Countdown to Publication</h2>
-            <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
+            <div class="when-pending">
+                <h2>Countdown to Publication</h2>
+                <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
+            </div>
+            <div class="when-expired">
+                <h2>Time's up</h2>
+                <p>This subject did not come to the table.</p>
+            </div>
             <div id="countdown" class="" data-countdown="2026-11-23T00:00:00Z">--d --h --m --s</div>
-
+            <div class="leak-download mt-4 when-expired">
+                <p class="text-secondary mb-3">The deadline passed. The dataset has been published.</p>
+                <a class="btn btn-primary btn-lg" href="files/calderbrook-dental-dump.zip" download><i class="bi bi-file-earmark-zip"></i> Download archive</a>
+                <div class="small text-secondary mt-3 font-monospace">calderbrook-dental-dump.zip &middot; 3.0 MB &middot; 133 files<br>SHA-256 5a7949f3f65a17146f31135cd8c386167ddc96eaae6d16c63c2ec2ece983974e</div>
+            </div>
         </div>
     </section>
 

@@ -20,6 +20,8 @@
                     <i class="bi bi-chat-dots"></i> Inbox <span id="unreadTotal" class="badge bg-danger d-none"></span></button></li>
                 <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#paneKeys" type="button" role="tab" id="keysTab">
                     <i class="bi bi-key"></i> Keys</button></li>
+                <li class="nav-item"><button class="nav-link d-none" data-bs-toggle="tab" data-bs-target="#paneTimers" type="button" role="tab" id="timersTab">
+                    <i class="bi bi-hourglass-split"></i> Countdowns</button></li>
             </ul>
             <div class="ms-auto d-flex align-items-center gap-3">
                 <span id="whoami" class="small text-secondary d-none"></span>
@@ -129,6 +131,37 @@
                                 <tr><th>Key</th><th>Label</th><th>Created</th><th>Status</th><th></th></tr>
                             </thead>
                             <tbody id="keyTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Countdowns -->
+            <div class="tab-pane fade" id="paneTimers" role="tabpanel">
+                <div class="card crypt-panel mb-3">
+                    <div class="card-body small text-secondary">
+                        Each biopsy counts down to its deadline. When the deadline passes, the tile and case
+                        file switch to <strong>Published</strong>. Times are shown and entered in <strong>UTC</strong>.
+                        <em>Reset</em> returns a biopsy to its generated default. Visitors see a change within two
+                        minutes, or on reload.
+                    </div>
+                </div>
+                <div class="card crypt-panel mb-3">
+                    <div class="card-body small text-secondary">
+                        <i class="bi bi-upload"></i> The <strong>leak archive</strong> is the file published when
+                        the countdown expires. Each biopsy ships a generated default; you can replace it with your
+                        own <code>.zip</code> (exercise / simulated data &mdash; it becomes downloadable by anyone
+                        once the deadline passes). Max 64&nbsp;MiB. <em>Remove</em> restores the generated default.
+                    </div>
+                </div>
+                <div id="timerError" class="alert alert-danger d-none" role="alert"></div>
+                <div class="card crypt-panel">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0 align-middle">
+                            <thead>
+                                <tr><th>#</th><th>Biopsy</th><th>Deadline (UTC)</th><th>Status</th><th>Change deadline (UTC)</th><th>Leak archive</th><th></th></tr>
+                            </thead>
+                            <tbody id="timerTable"></tbody>
                         </table>
                     </div>
                 </div>
