@@ -11,6 +11,7 @@ export const PERMISSIONS = Object.freeze({
   KEYS_MANAGE: "keys:manage",          // mint / list / revoke access keys
   USERS_MANAGE: "users:manage",        // list / disable customer accounts
   CHATS_ALL: "chats:all",              // read + reply to every conversation
+  BIOPSIES_MANAGE: "biopsies:manage",  // set / reset biopsy countdown deadlines
   CHAT_OWN: "chat:own",                // read + write your own conversation
 });
 
@@ -19,6 +20,7 @@ const ROLE_PERMISSIONS = Object.freeze({
     PERMISSIONS.KEYS_MANAGE,
     PERMISSIONS.USERS_MANAGE,
     PERMISSIONS.CHATS_ALL,
+    PERMISSIONS.BIOPSIES_MANAGE,
   ]),
   [ROLES.CUSTOMER]: new Set([PERMISSIONS.CHAT_OWN]),
 });

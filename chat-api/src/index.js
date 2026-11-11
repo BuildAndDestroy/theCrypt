@@ -8,6 +8,7 @@ import { attachUser, requireApiRequest } from "./middleware/auth.js";
 import { authRouter } from "./routes/auth.js";
 import { chatRouter } from "./routes/chat.js";
 import { adminRouter } from "./routes/admin.js";
+import { internalBiopsiesRouter, publicBiopsiesRouter } from "./routes/biopsies.js";
 import { ensureAdmin } from "./bootstrap.js";
 import { connect } from "./lib/db.js";
 import { loadKeys, strict } from "./lib/fieldcrypto.js";
@@ -48,10 +49,15 @@ api.use(requireApiRequest);
 api.use(attachUser);
 api.use(userLimiter);     // per signed-in user (anonymous calls share one bucket)
 api.use("/auth", authRouter);
+api.use("/public", publicBiopsiesRouter);
 api.use("/chat", chatRouter);
 api.use("/admin", adminRouter);
 api.use((_req, res) => res.status(404).json({ error: "Not found" }));
 app.use("/api", api);
+
+// nginx auth_request target (dump release check). Not under /api, so nginx's
+// public /api/ proxy can't reach it; only its internal /_release location does.
+app.use("/internal", internalBiopsiesRouter);
 
 // Never leak stack traces, paths or driver errors to the client.
 // eslint-disable-next-line no-unused-vars

@@ -75,10 +75,24 @@ const messageSchema = new Schema({
 });
 messageSchema.index({ customer: 1, _id: 1 });
 
+// ------------------------------------------------------- BiopsyDeadline
+// An operator override of a biopsy's countdown. The generated default lives
+// in the website's biopsies.json; no row = use the default. Deadlines are
+// public (every visitor sees the timer), so they are not encrypted.
+const biopsyDeadlineSchema = new Schema(
+  {
+    n: { type: Number, required: true, unique: true, min: 1, max: 9999 },
+    deadline: { type: Date, required: true },
+    updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
+  },
+  { timestamps: true },
+);
+
 export const User = model("User", userSchema);
 export const AccessKey = model("AccessKey", accessKeySchema);
 export const Session = model("Session", sessionSchema);
 export const Message = model("Message", messageSchema);
+export const BiopsyDeadline = model("BiopsyDeadline", biopsyDeadlineSchema);
 
 /**
  * Query filter for "the user with this email": by blind index (current key,

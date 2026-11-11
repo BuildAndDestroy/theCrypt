@@ -76,12 +76,22 @@
         </div>
     </section>
 
-    <section class="py-5" id="timer-section">
+    <section class="py-5 biopsy-state" id="timer-section" data-biopsy="9">
         <div class="container text-center">
-            <h2>Countdown to Publication</h2>
-            <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
+            <div class="when-pending">
+                <h2>Countdown to Publication</h2>
+                <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
+            </div>
+            <div class="when-expired">
+                <h2>Time's up</h2>
+                <p>This subject did not come to the table.</p>
+            </div>
             <div id="countdown" class="" data-countdown="2026-12-07T00:00:00Z">--d --h --m --s</div>
-
+            <div class="leak-download mt-4 when-expired">
+                <p class="text-secondary mb-3">The deadline passed. The dataset has been published.</p>
+                <a class="btn btn-primary btn-lg" href="files/quilloncu-dump.zip" download><i class="bi bi-file-earmark-zip"></i> Download archive</a>
+                <div class="small text-secondary mt-3 font-monospace">quilloncu-dump.zip &middot; 3.1 MB &middot; 133 files<br>SHA-256 8f05cd46d32a10470576a4759b539b005c26fe39f5a38d5d8eac13391291d073</div>
+            </div>
         </div>
     </section>
 

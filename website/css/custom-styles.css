@@ -356,6 +356,11 @@ footer.bg-dark {
     color: var(--crypt-blood);
     text-shadow: 0 0 18px rgba(229,72,77,0.45);
 }
+/* Each biopsy tile / case-file timer section carries both states; the
+   container's .expired class (generator default, then js/countdown.js with
+   the live deadline) picks which one shows. */
+[data-biopsy]:not(.expired) .when-expired,
+[data-biopsy].expired .when-pending { display: none !important; }
 .biopsy-tile.expired { border-color: rgba(229,72,77,0.55); }
 .biopsy-tile.expired:hover {
     border-color: var(--crypt-blood);

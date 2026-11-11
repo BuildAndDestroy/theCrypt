@@ -31,6 +31,9 @@ COPY --from=assets /build/node_modules/bootstrap-icons/font /usr/share/nginx/htm
 
 # Hand-authored site, then the minified custom assets on top.
 COPY website/ /usr/share/nginx/html/
+# Leak archives: outside the web root; nginx releases each one through
+# chat-api once its biopsy's deadline has passed (nginx-prod.conf).
+COPY dumps/ /usr/share/nginx/dumps/
 COPY --from=assets /build/custom-styles.min.css /usr/share/nginx/html/css/custom-styles.min.css
 COPY --from=assets /build/countdown.min.js /usr/share/nginx/html/js/countdown.min.js
 

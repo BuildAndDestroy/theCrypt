@@ -6,6 +6,7 @@ import { PERMISSIONS, ROLES } from "../lib/rbac.js";
 import * as v from "../lib/validate.js";
 import { requirePermission } from "../middleware/auth.js";
 import { allowSend, listMessages, MAX_MESSAGE, newMessage, serializeMessage } from "./chat.js";
+import { adminBiopsiesRouter } from "./biopsies.js";
 import { accessKeyField, decrypt, decryptUser, encrypt } from "../lib/fieldcrypto.js";
 
 export const adminRouter = Router();
@@ -166,3 +167,5 @@ convRouter.post("/:customerId/active", requirePermission(PERMISSIONS.USERS_MANAG
 });
 
 adminRouter.use("/conversations", convRouter);
+
+adminRouter.use("/biopsies", adminBiopsiesRouter);

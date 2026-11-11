@@ -221,6 +221,97 @@
     loadKeys().catch((e) => api.setError("keyError", e.message));
   });
 
+  // -------------------------------------------------------- countdowns
+  const pad = (x) => String(x).padStart(2, "0");
+
+  // ISO -> "2026-12-09 00:00" (UTC) for display.
+  function utcText(iso) {
+    const d = new Date(iso);
+    return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate()) +
+      " " + pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes());
+  }
+  // ISO -> "2026-12-09T00:00" for <input type="datetime-local"> (value is UTC wall-clock).
+  const utcInput = (iso) => utcText(iso).replace(" ", "T");
+
+  function remaining(iso, now) {
+    const left = new Date(iso).getTime() - now;
+    if (left <= 0) return null;
+    const d = Math.floor(left / 86400000);
+    const h = Math.floor((left % 86400000) / 3600000);
+    const m = Math.floor((left % 3600000) / 60000);
+    return d ? d + "d " + h + "h" : h ? h + "h " + m + "m" : m + "m";
+  }
+
+  async function saveDeadline(b, iso) {
+    api.setError("timerError", "");
+    try {
+      await api.post("/admin/biopsies/" + b.n, { deadline: iso });
+      await loadTimers();
+    } catch (e) {
+      api.setError("timerError", e.message);
+    }
+  }
+
+  function timerRow(b, now) {
+    const input = el("input", {
+      type: "datetime-local", class: "form-control form-control-sm timer-input",
+      value: utcInput(b.deadline), step: "60",
+    });
+    const setBtn = el("button", { type: "button", class: "btn btn-sm btn-primary" }, "Set");
+    setBtn.addEventListener("click", () => {
+      if (!input.value) { api.setError("timerError", "Pick a date and time first."); return; }
+      // The datetime-local value is a UTC wall-clock string; append Z.
+      saveDeadline(b, input.value.length === 16 ? input.value + ":00Z" : input.value + "Z");
+    });
+
+    let resetBtn = null;
+    if (b.overridden) {
+      resetBtn = el("button", {
+        type: "button", class: "btn btn-sm btn-outline-secondary",
+        title: "Back to the generated default (" + utcText(b.defaultDeadline) + " UTC)",
+      }, "Reset");
+      resetBtn.addEventListener("click", async () => {
+        if (!confirm("Reset " + b.title + " to its generated deadline (" + utcText(b.defaultDeadline) + " UTC)?")) return;
+        api.setError("timerError", "");
+        try { await api.post("/admin/biopsies/" + b.n + "/reset"); await loadTimers(); }
+        catch (e) { api.setError("timerError", e.message); }
+      });
+    }
+
+    const left = remaining(b.deadline, now);
+    const status = b.released
+      ? el("span", { class: "badge bg-danger" }, "published")
+      : el("span", { class: "badge bg-warning text-dark" }, left + " left");
+    const deadlineCell = el("td", { class: "font-monospace small" }, utcText(b.deadline));
+    if (b.overridden) deadlineCell.appendChild(el("div", { class: "text-secondary" }, "default " + utcText(b.defaultDeadline)));
+
+    return el("tr", null,
+      el("td", { class: "text-secondary" }, String(b.n)),
+      el("td", null, el("a", { href: "/biopsy-" + b.n + "/", target: "_blank", rel: "noopener" }, b.title)),
+      deadlineCell,
+      el("td", null, status),
+      el("td", null, el("div", { class: "d-flex gap-2 align-items-center" }, input, setBtn)),
+      el("td", { class: "text-end" }, resetBtn),
+    );
+  }
+
+  async function loadTimers() {
+    const data = await api.get("/admin/biopsies");
+    const now = new Date(data.now).getTime();
+    const tbody = document.getElementById("timerTable");
+    tbody.replaceChildren();
+    if (!data.biopsies.length) {
+      tbody.appendChild(el("tr", null, el("td", { colspan: "6", class: "text-secondary" },
+        "No biopsies found — the API could not read /biopsies.json from the site.")));
+      return;
+    }
+    for (const b of data.biopsies) tbody.appendChild(timerRow(b, now));
+  }
+
+  document.getElementById("timersTab").addEventListener("shown.bs.tab", () => {
+    loadTimers().catch((e) => api.setError("timerError", e.message));
+  });
+
   // ------------------------------------------------------------- auth
   function enterConsole(user) {
     if (!user.permissions.includes("chats:all")) {
@@ -233,6 +324,7 @@
     api.show("adminNav", true);
     api.show("logoutBtn", true);
     api.show("keysTab", user.permissions.includes("keys:manage"));
+    api.show("timersTab", user.permissions.includes("biopsies:manage"));
     const who = document.getElementById("whoami");
     who.textContent = user.email;
     who.classList.remove("d-none");

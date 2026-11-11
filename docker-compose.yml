@@ -29,6 +29,7 @@ services:
     volumes:
       # Live-edit the entire site source without rebuilding.
       - ./website:/usr/share/nginx/html:ro
+      - ./dumps:/usr/share/nginx/dumps:ro
     depends_on:
       - api
     restart: unless-stopped
@@ -46,6 +47,7 @@ services:
       # nothing; never reuse it. Deployments generate their own (secrets.sh).
       DATA_KEY: "hYdSZ0dy89Rrw+JWmB8oAVPQ0cWbkSjg34pDQliBE+M="
       STRICT_ENCRYPTION: "true"
+      WEBSITE_ORIGIN: http://website:8080   # where chat-api reads biopsies.json
     volumes:
       - ./chat-api/src:/app/src:ro
     depends_on:
