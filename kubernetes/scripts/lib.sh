@@ -106,7 +106,8 @@ secret_exists() { kubectl_cmd -n "$NAMESPACE" get secret "$1" >/dev/null 2>&1; }
 
 # Read one key of a Secret (decoded) to stdout.
 secret_value() {
-  kubectl_cmd -n "$NAMESPACE" get secret "$1" -o "jsonpath={.data.$2}" | base64 -d
+  # Escape dots: in jsonpath, {.data.ca.crt} means data -> ca -> crt.
+  kubectl_cmd -n "$NAMESPACE" get secret "$1" -o "jsonpath={.data.${2//./\\.}}" | base64 -d
 }
 
 # Run mongosh in the mongo container. When the mongo-tls Secret is mounted it
