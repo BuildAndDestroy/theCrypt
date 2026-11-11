@@ -5,7 +5,7 @@
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biopsy 2 Review</title>
+    <title>Thornlea Freight Solutions — Case File</title>
     <link href="/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/font/bootstrap-icons.css" rel="stylesheet">
     <link href="/css/custom-styles.min.css" rel="stylesheet">
@@ -30,19 +30,50 @@
 
     <section class="py-5"><div class="container text-center"><span class="section-tag">// Case File SUBJ-BCC9</span></div>
         <div class="container">
-            <h1 class="text-center mb-4">Detailed Review: Biopsy 2</h1>
+            <h1 class="text-center mb-4">Thornlea Freight Solutions Ltd</h1>
             <div class="row">
                 <div class="col-md-8 mx-auto review-body">
-                    <p><strong>Subject:</strong> SUBJ-BCC9 &mdash; Engineering, LATAM.</p>
-                    <p><strong>Profile:</strong> ~120 employees, annual revenue $1.2B. 544 GB of data recovered.</p>
+                    <div class="subject-head">
+                        <div class="subject-mono" aria-hidden="true">TF</div>
+                        <div><div class="subject-name">Thornlea Freight Solutions Ltd</div><div class="subject-domain font-monospace">thornlea-freight.co.uk</div></div>
+                    </div>
+                    <p>Road freight, warehousing and customs brokerage for retailers and manufacturers across the UK and Ireland, operating four distribution centres and a fleet of 180 HGVs.</p>
+                    <table class="table table-dark table-sm subject-table">
+                        <tbody>
+                            <tr><th scope="row">Company</th><td>Thornlea Freight Solutions Ltd</td></tr>
+                            <tr><th scope="row">Website</th><td><span class="font-monospace">thornlea-freight.co.uk</span></td></tr>
+                            <tr><th scope="row">Headquarters</th><td>Unit 7, Ashwell Road Distribution Park<br>Leeds LS12 4QT<br>West Yorkshire, United Kingdom</td></tr>
+                            <tr><th scope="row">Industry</th><td>Logistics &amp; freight forwarding</td></tr>
+                            <tr><th scope="row">Employees</th><td>~520</td></tr>
+                            <tr><th scope="row">Revenue</th><td>£74M (FY2025)</td></tr>
+                            <tr><th scope="row">Data volume</th><td>388 GB &middot; 910K files</td></tr>
+                        </tbody>
+                    </table>
                     <h3>Key Findings</h3>
                     <ul>
-                        <li>Backups were online and reachable from the compromised domain.</li>
-                        <li>Payroll records for the last three fiscal years copied.</li>
-                        <li>EDR tamper protection disabled across most endpoints.</li>
+                        <li>Initial access via a phishing email to the accounts payable team.</li>
+                        <li>Remote desktop exposed on a legacy depot server.</li>
+                        <li>Backups encrypted alongside production; offsite copies months old.</li>
+                        <li>Transport management system credentials stored in a shared spreadsheet.</li>
                     </ul>
+                    <h3>Data Obtained</h3>
+                    <ul>
+                        <li>Customer contracts and rate cards</li>
+                        <li>Customs declarations and shipping manifests</li>
+                        <li>Driver records, licences and tachograph data</li>
+                        <li>Payroll and HR files</li>
+                        <li>Finance: invoices, credit control, bank statements</li>
+                        <li>Warehouse management system database exports</li>
+                    </ul>
+                    <h3>Proof &mdash; File Listing (excerpt)</h3>
+                    <pre class="proof-listing">\\tfs-fs01\Finance\Credit Control\Aged_Debtors_2025-10.xlsx
+\\tfs-fs01\Commercial\Contracts\Rate Card - Retail Client B.pdf
+\\tfs-fs01\HR\Drivers\Licence_Checks_2025.xlsx
+\\tfs-fs02\Customs\2025\CDS_Declarations_Q3.csv
+\\tfs-wms01\Exports\WMS_Inventory_Snapshot.csv
+\\tfs-fs01\IT\Passwords_DO_NOT_SHARE.xlsx</pre>
                     <h3>Additional Notes</h3>
-                    <p>Third parties named in the dataset will be notified at publication.</p>
+                    <p>Thornlea opened negotiations and then went silent. Retail clients will receive their shipment and pricing data first.</p>
                 </div>
             </div>
         </div>
@@ -52,7 +83,7 @@
         <div class="container text-center">
             <h2>Countdown to Publication</h2>
             <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
-            <div id="countdown" class="" data-countdown="2027-05-05T00:53:00Z">--d --h --m --s</div>
+            <div id="countdown" class="" data-countdown="2026-11-16T00:00:00Z">--d --h --m --s</div>
 
         </div>
     </section>

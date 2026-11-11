@@ -36,6 +36,7 @@ cannot be made to leak to a third party.
 ```
 website/                      static site (HTML/CSS/JS, favicon)
 website/biopsy-N/             generated case files (one per Death Row tile)
+tools/subjects.json           named fictitious companies for the generator
 tools/generate_biopsies.py    generates the biopsy pages, tiles and leak archive
 website/chat/                 customer chat page (register with key / sign in)
 website/admin/                operator console (inbox, replies, access keys)
@@ -160,6 +161,36 @@ cat tor/hidden_service/hostname   # <-- your .onion address
 The key is your identity — keep `tor/hidden_service/` **out of git** (it is
 in `.gitignore`) and out of any image. Back it up somewhere safe: lose it and
 you lose the address.
+
+#### Optional: a vanity address
+
+Want the address to start with a word (like `morgue…`)? Generate the key with
+[mkp224o](https://github.com/cathugger/mkp224o) instead. Each character of
+prefix makes the search ~32× longer: 6 characters takes under a minute on a
+multi-core desktop, 7 roughly 10–30 minutes, 8 several hours.
+
+```
+git clone --depth 1 --branch v1.7.0 https://github.com/cathugger/mkp224o.git
+cd mkp224o && ./autogen.sh && ./configure && make      # needs libsodium-dev
+./mkp224o morgue -n 5 -d ../vanity                     # 5 candidates to pick from
+```
+
+Each candidate is a folder named after its address, holding
+`hs_ed25519_secret_key`, `hs_ed25519_public_key` and `hostname`. Copy the one you
+like to `tor/hidden_service/` (mode `700`, files `600`) and delete the rest.
+
+To **switch a running site** to a new key (the old address stops working):
+
+```
+mv tor/hidden_service tor/hidden_service_old            # keep the old key
+# ... put the new key in tor/hidden_service/ ...
+kubectl -n tor-hidden-ns create secret generic onion-key \
+  --from-file=hs_ed25519_secret_key=tor/hidden_service/hs_ed25519_secret_key \
+  --from-file=hs_ed25519_public_key=tor/hidden_service/hs_ed25519_public_key \
+  --from-file=hostname=tor/hidden_service/hostname \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n tor-hidden-ns rollout restart deploy/thecrypt
+```
 
 ### 3. Create the namespace and Secrets
 
@@ -334,23 +365,37 @@ The Death Row grid on the home page and the `biopsy-N/` case files are
 generated, not hand-written:
 
 ```
-python3 tools/generate_biopsies.py                       # 56 biopsies, #13 expired
-python3 tools/generate_biopsies.py --count 80 --expired 7 --seed 42 --base-date 2026-12-01
+python3 tools/generate_biopsies.py                       # 9 biopsies from tools/subjects.json
+python3 tools/generate_biopsies.py --count 20 --expired 4 --seed 42 --base-date 2026-12-01
 ```
 
-- Each biopsy gets an anonymous codename (`SUBJ-XXXX`), a generic sector and
-  region, random findings, and a deadline 7–180 days after `--base-date`
-  (default: today). Tiles and case files count down live (`js/countdown.js`).
-- The `--expired` biopsy's deadline is already past: its tile reads
+- **Named companies** come from `tools/subjects.json`. Each one takes over a
+  `slot` with a full profile:
+  - company name, website, headquarters, industry, size, revenue and data volume;
+  - "Data Obtained" categories, a proof file listing, findings and a note;
+  - a deadline `deadline_days` after `--base-date`.
+
+  All 9 slots are fictitious companies. Their domains were checked as
+  unregistered, except `veldmark-tech.com`, which belongs to the exercise.
+  Slot 1, **Veldmark Insurance Technology (Pty) Ltd**, is on a 4-week timer.
+- **Slots without a named company** (for example with `--count` above 9) get an anonymous codename (`SUBJ-XXXX`), a generic
+  sector and region, random findings, and a deadline 7–180 days out.
+- **Expired biopsies** are already past their deadline. For a named company,
+  set `deadline_days` to 0 or below (currently #6, Altenbrück); for a codename
+  slot, use `--expired N`. Its tile reads
   **Time's up!** and its case file offers a **Download archive** button. The
   zip (about 3 MB) is junk in a Windows-looking tree (`C$/Users/...`,
-  `Shares/Finance/...`): random bytes behind `.docx`/`.xlsx`/`.pdf` names and
-  lorem-ipsum text and CSV. A `_README_SIMULATED_DATA.txt` marker at its root
-  says it is simulated.
-- Runs are seeded: the same arguments give the same pages and an identical
-  zip. Re-run it, then rebuild the website image, to change the set. Tiles are
-  written between the `BIOPSIES:BEGIN/END` markers in `index.html`; edit the
-  generator's templates rather than the generated pages.
+  `Shares/Finance/...`): random bytes behind `.docx`/`.xlsx`/`.pdf` names,
+  plus lorem-ipsum text and CSV files. A `_README_SIMULATED_DATA.txt` marker
+  at its root says it is simulated. Each expired biopsy gets its own zip.
+- **Deadlines** count from the current hour in UTC, or from `--base-date`. Every
+  timer counts down live (`js/countdown.js`). They don't move by themselves:
+  re-run the generator to reset them, then rebuild the website image.
+- **Runs are seeded.** The same arguments and base date give the same pages
+  and a byte-identical zip.
+- **Where things go:** tiles are written between the `BIOPSIES:BEGIN/END`
+  markers in `index.html`. Edit the generator or `subjects.json` rather than
+  the generated pages.
 
 ## Operator chat
 
@@ -419,5 +464,5 @@ GitHub Actions run on every push / PR:
 * ~~Separate Nginx and Tor proxy as two different containers~~ ✅ (sidecar)
 * Continue to update web content to look better
 * ~~Add javascript, python, or php to make the website more dynamic~~ ✅ (operator chat: Node + MongoDB)
-* Vanity onion address (e.g. with `mkp224o`)
+* ~~Vanity onion address~~ ✅ (`mkp224o`, see "Optional: a vanity address")
 * Push new messages (SSE/WebSocket) instead of polling

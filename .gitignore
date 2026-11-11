@@ -1,6 +1,6 @@
 # Onion identity — NEVER commit. This is the hidden service's private key.
-tor/hidden_service/
-tor/torrc
+# (covers tor/hidden_service/, tor/hidden_service_old/ and tor/torrc)
+tor/
 
 # OS / editor cruft
 .DS_Store

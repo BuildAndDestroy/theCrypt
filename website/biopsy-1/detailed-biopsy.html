@@ -5,7 +5,7 @@
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biopsy 1 Review</title>
+    <title>Veldmark Insurance Technology — Case File</title>
     <link href="/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/font/bootstrap-icons.css" rel="stylesheet">
     <link href="/css/custom-styles.min.css" rel="stylesheet">
@@ -30,19 +30,54 @@
 
     <section class="py-5"><div class="container text-center"><span class="section-tag">// Case File SUBJ-B5AC</span></div>
         <div class="container">
-            <h1 class="text-center mb-4">Detailed Review: Biopsy 1</h1>
+            <h1 class="text-center mb-4">Veldmark Insurance Technology (Pty) Ltd</h1>
             <div class="row">
                 <div class="col-md-8 mx-auto review-body">
-                    <p><strong>Subject:</strong> SUBJ-B5AC &mdash; Agriculture, APAC.</p>
-                    <p><strong>Profile:</strong> ~400 employees, annual revenue $310M. 263 GB of data recovered.</p>
+                    <div class="subject-head">
+                        <div class="subject-mono" aria-hidden="true">VM</div>
+                        <div><div class="subject-name">Veldmark Insurance Technology (Pty) Ltd</div><div class="subject-domain font-monospace">veldmark-tech.com</div></div>
+                    </div>
+                    <p>Insurtech platform provider serving short-term insurers and brokers across Southern Africa: policy administration, claims processing and underwriting analytics delivered as a managed cloud service.</p>
+                    <table class="table table-dark table-sm subject-table">
+                        <tbody>
+                            <tr><th scope="row">Company</th><td>Veldmark Insurance Technology (Pty) Ltd</td></tr>
+                            <tr><th scope="row">Website</th><td><span class="font-monospace">veldmark-tech.com</span></td></tr>
+                            <tr><th scope="row">Headquarters</th><td>14 Katherine Street, Floor 9<br>Sandton, Johannesburg<br>Gauteng 2196, South Africa</td></tr>
+                            <tr><th scope="row">Industry</th><td>Insurance technology</td></tr>
+                            <tr><th scope="row">Employees</th><td>~340</td></tr>
+                            <tr><th scope="row">Revenue</th><td>R 486M (FY2025)</td></tr>
+                            <tr><th scope="row">Data volume</th><td>612 GB &middot; 1.4M files</td></tr>
+                        </tbody>
+                    </table>
                     <h3>Key Findings</h3>
                     <ul>
-                        <li>Service accounts with non-expiring passwords and broad rights.</li>
-                        <li>Revenue declined year over year; cyber insurance renewal pending.</li>
-                        <li>Engineering drawings and supplier contracts copied.</li>
+                        <li>Initial access through a reused VPN credential without MFA.</li>
+                        <li>Domain admin obtained from a plaintext password in an IT share.</li>
+                        <li>Production database backups stored on a file server reachable from the office network.</li>
+                        <li>Client data from multiple insurers held in shared storage without segregation.</li>
+                        <li>Regulators and data subjects will be notified under POPIA at publication.</li>
                     </ul>
+                    <h3>Data Obtained</h3>
+                    <ul>
+                        <li>Policyholder records (ID numbers, contact details, banking details)</li>
+                        <li>Claims files, assessor reports and supporting documents</li>
+                        <li>Underwriting and pricing models</li>
+                        <li>Platform source code and CI/CD secrets</li>
+                        <li>Broker and insurer client contracts</li>
+                        <li>HR, payroll and employee records</li>
+                        <li>Finance: management accounts, audit working papers, tax</li>
+                    </ul>
+                    <h3>Proof &mdash; File Listing (excerpt)</h3>
+                    <pre class="proof-listing">\\vmk-fs01\Finance\FY2025\Management Accounts\MA_2025-09_FINAL.xlsx
+\\vmk-fs01\Finance\Audit\2025\Working Papers\WP-Revenue.xlsx
+\\vmk-fs01\HR\Payroll\2025\Payroll_Run_2025-10.csv
+\\vmk-fs01\Legal\Clients\Master Services Agreement - Insurer A.pdf
+\\vmk-fs02\Claims\2025\Q3\CLM-0048213\assessor_report.pdf
+\\vmk-fs02\Underwriting\Pricing\motor_rating_model_v14.xlsx
+\\vmk-sql03\Backups\PolicyAdmin_PROD_2025-10-31.bak
+\\vmk-git01\repos\policy-platform\deploy\prod.env</pre>
                     <h3>Additional Notes</h3>
-                    <p>Negotiation window is open. Contact via the secure channel with your key.</p>
+                    <p>Veldmark was contacted and has not responded. Insurer and broker clients named in the data will be informed before publication.</p>
                 </div>
             </div>
         </div>
@@ -52,7 +87,7 @@
         <div class="container text-center">
             <h2>Countdown to Publication</h2>
             <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
-            <div id="countdown" class="" data-countdown="2027-04-28T11:58:00Z">--d --h --m --s</div>
+            <div id="countdown" class="" data-countdown="2026-12-09T00:00:00Z">--d --h --m --s</div>
 
         </div>
     </section>

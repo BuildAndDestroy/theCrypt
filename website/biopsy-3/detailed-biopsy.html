@@ -5,7 +5,7 @@
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biopsy 3 Review</title>
+    <title>Calderbrook Dental Partners — Case File</title>
     <link href="/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/font/bootstrap-icons.css" rel="stylesheet">
     <link href="/css/custom-styles.min.css" rel="stylesheet">
@@ -30,19 +30,49 @@
 
     <section class="py-5"><div class="container text-center"><span class="section-tag">// Case File SUBJ-8621</span></div>
         <div class="container">
-            <h1 class="text-center mb-4">Detailed Review: Biopsy 3</h1>
+            <h1 class="text-center mb-4">Calderbrook Dental Partners, PLLC</h1>
             <div class="row">
                 <div class="col-md-8 mx-auto review-body">
-                    <p><strong>Subject:</strong> SUBJ-8621 &mdash; Architecture, North America.</p>
-                    <p><strong>Profile:</strong> ~80 employees, annual revenue $90M. 443 GB of data recovered.</p>
+                    <div class="subject-head">
+                        <div class="subject-mono" aria-hidden="true">CD</div>
+                        <div><div class="subject-name">Calderbrook Dental Partners, PLLC</div><div class="subject-domain font-monospace">calderbrook-dental.com</div></div>
+                    </div>
+                    <p>Multi-site dental group operating 22 practices across Ohio and Indiana, with centralised billing, imaging and patient scheduling.</p>
+                    <table class="table table-dark table-sm subject-table">
+                        <tbody>
+                            <tr><th scope="row">Company</th><td>Calderbrook Dental Partners, PLLC</td></tr>
+                            <tr><th scope="row">Website</th><td><span class="font-monospace">calderbrook-dental.com</span></td></tr>
+                            <tr><th scope="row">Headquarters</th><td>2280 Larkspur Commons Drive, Suite 300<br>Columbus, OH 43235<br>United States</td></tr>
+                            <tr><th scope="row">Industry</th><td>Healthcare — dental group</td></tr>
+                            <tr><th scope="row">Employees</th><td>~410</td></tr>
+                            <tr><th scope="row">Revenue</th><td>$63M (FY2025)</td></tr>
+                            <tr><th scope="row">Data volume</th><td>274 GB &middot; 2.1M files</td></tr>
+                        </tbody>
+                    </table>
                     <h3>Key Findings</h3>
                     <ul>
-                        <li>Unpatched VPN appliance used as the initial access vector.</li>
-                        <li>Finance and HR shares exfiltrated in full.</li>
-                        <li>MFA not enforced for legacy mail protocols.</li>
+                        <li>Initial access through an unpatched remote-support tool used by the IT vendor.</li>
+                        <li>Practice management database reachable from every clinic workstation.</li>
+                        <li>No network segmentation between clinics and the head office.</li>
+                        <li>HIPAA breach notification obligations apply to the affected patients.</li>
                     </ul>
+                    <h3>Data Obtained</h3>
+                    <ul>
+                        <li>Patient records and treatment histories</li>
+                        <li>Dental imaging (X-ray, CBCT)</li>
+                        <li>Insurance claims and billing data</li>
+                        <li>Staff credentials, HR and payroll</li>
+                        <li>Practice acquisition agreements</li>
+                        <li>Accounting and tax records</li>
+                    </ul>
+                    <h3>Proof &mdash; File Listing (excerpt)</h3>
+                    <pre class="proof-listing">\\cdp-fs01\Billing\Claims\2025\ERA_Remittance_2025-09.csv
+\\cdp-fs01\Finance\Acquisitions\LOI - Practice 23.pdf
+\\cdp-img01\Imaging\Archive\2025\10\batch_0412.zip
+\\cdp-sql01\Backups\PracticeMgmt_PROD.bak
+\\cdp-fs01\HR\Credentialing\Provider_Licences.xlsx</pre>
                     <h3>Additional Notes</h3>
-                    <p>Third parties named in the dataset will be notified at publication.</p>
+                    <p>Calderbrook declined to engage. Patients and insurers listed in the data will be contacted at publication.</p>
                 </div>
             </div>
         </div>
@@ -52,7 +82,7 @@
         <div class="container text-center">
             <h2>Countdown to Publication</h2>
             <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
-            <div id="countdown" class="" data-countdown="2026-12-05T13:41:00Z">--d --h --m --s</div>
+            <div id="countdown" class="" data-countdown="2026-11-23T00:00:00Z">--d --h --m --s</div>
 
         </div>
     </section>

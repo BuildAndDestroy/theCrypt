@@ -5,7 +5,7 @@
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biopsy 5 Review</title>
+    <title>Marrowfield College — Case File</title>
     <link href="/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/font/bootstrap-icons.css" rel="stylesheet">
     <link href="/css/custom-styles.min.css" rel="stylesheet">
@@ -30,19 +30,47 @@
 
     <section class="py-5"><div class="container text-center"><span class="section-tag">// Case File SUBJ-1FE0</span></div>
         <div class="container">
-            <h1 class="text-center mb-4">Detailed Review: Biopsy 5</h1>
+            <h1 class="text-center mb-4">Marrowfield College of Applied Technology</h1>
             <div class="row">
                 <div class="col-md-8 mx-auto review-body">
-                    <p><strong>Subject:</strong> SUBJ-1FE0 &mdash; Engineering, Nordics.</p>
-                    <p><strong>Profile:</strong> ~4000 employees, annual revenue $140M. 576 GB of data recovered.</p>
+                    <div class="subject-head">
+                        <div class="subject-mono" aria-hidden="true">MC</div>
+                        <div><div class="subject-name">Marrowfield College of Applied Technology</div><div class="subject-domain font-monospace">marrowfieldcollege.ca</div></div>
+                    </div>
+                    <p>Public college offering diploma and apprenticeship programmes in engineering, trades, health and IT to 14,000 full-time students.</p>
+                    <table class="table table-dark table-sm subject-table">
+                        <tbody>
+                            <tr><th scope="row">Company</th><td>Marrowfield College of Applied Technology</td></tr>
+                            <tr><th scope="row">Website</th><td><span class="font-monospace">marrowfieldcollege.ca</span></td></tr>
+                            <tr><th scope="row">Headquarters</th><td>1450 Marrowfield Road<br>Kitchener, Ontario N2R 0A9<br>Canada</td></tr>
+                            <tr><th scope="row">Industry</th><td>Higher education</td></tr>
+                            <tr><th scope="row">Employees</th><td>~1150</td></tr>
+                            <tr><th scope="row">Revenue</th><td>C$148M (FY2025)</td></tr>
+                            <tr><th scope="row">Data volume</th><td>1240 GB &middot; 3.6M files</td></tr>
+                        </tbody>
+                    </table>
                     <h3>Key Findings</h3>
                     <ul>
-                        <li>Unpatched VPN appliance used as the initial access vector.</li>
-                        <li>Board-level meeting minutes included in the dataset.</li>
-                        <li>Backups were online and reachable from the compromised domain.</li>
+                        <li>Initial access via a student portal vulnerability.</li>
+                        <li>Domain admin from a service account with a password unchanged since 2017.</li>
+                        <li>Research shares and finance on the same flat network as student labs.</li>
+                        <li>Backups on network storage joined to the domain.</li>
                     </ul>
+                    <h3>Data Obtained</h3>
+                    <ul>
+                        <li>Student records, transcripts and financial aid files</li>
+                        <li>Staff HR and payroll</li>
+                        <li>Research grant applications</li>
+                        <li>Finance and procurement</li>
+                        <li>Active Directory and IT documentation</li>
+                    </ul>
+                    <h3>Proof &mdash; File Listing (excerpt)</h3>
+                    <pre class="proof-listing">\\mc-fs01\Registrar\Transcripts\2025\Fall_Cohort_Export.csv
+\\mc-fs01\FinancialAid\OSAP\2025-26_Disbursements.xlsx
+\\mc-fs02\Research\Grants\NSERC_Application_Draft.docx
+\\mc-fs01\HR\Payroll\Faculty_Salary_Grid_2025.xlsx</pre>
                     <h3>Additional Notes</h3>
-                    <p>Negotiation window is open. Contact via the secure channel with your key.</p>
+                    <p>Marrowfield has until the timer runs out to come to the table.</p>
                 </div>
             </div>
         </div>
@@ -52,7 +80,7 @@
         <div class="container text-center">
             <h2>Countdown to Publication</h2>
             <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
-            <div id="countdown" class="" data-countdown="2027-03-30T15:34:00Z">--d --h --m --s</div>
+            <div id="countdown" class="" data-countdown="2026-12-14T00:00:00Z">--d --h --m --s</div>
 
         </div>
     </section>
