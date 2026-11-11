@@ -88,11 +88,30 @@ const biopsyDeadlineSchema = new Schema(
   { timestamps: true },
 );
 
+// --------------------------------------------------------- BiopsyArchive
+// An operator-uploaded "leak" archive that replaces the generated default for
+// biopsy `n`. The bytes live in GridFS (bucket "archives"); this holds the
+// metadata. Like the dumps, it is exercise/simulated content, published only
+// once the biopsy's deadline passes (routes/biopsies.js enforces that).
+const biopsyArchiveSchema = new Schema(
+  {
+    n: { type: Number, required: true, unique: true, min: 1, max: 9999 },
+    filename: { type: String, required: true, maxlength: 128 },
+    size: { type: Number, required: true },
+    sha256: { type: String, required: true },
+    contentType: { type: String, default: "application/zip" },
+    gridId: { type: Schema.Types.ObjectId, required: true },
+    uploadedBy: { type: Schema.Types.ObjectId, ref: "User" },
+  },
+  { timestamps: true },
+);
+
 export const User = model("User", userSchema);
 export const AccessKey = model("AccessKey", accessKeySchema);
 export const Session = model("Session", sessionSchema);
 export const Message = model("Message", messageSchema);
 export const BiopsyDeadline = model("BiopsyDeadline", biopsyDeadlineSchema);
+export const BiopsyArchive = model("BiopsyArchive", biopsyArchiveSchema);
 
 /**
  * Query filter for "the user with this email": by blind index (current key,

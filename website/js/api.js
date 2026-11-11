@@ -92,6 +92,7 @@ window.CryptApi = (function () {
   return {
     get: (p) => request("GET", p),
     post: (p, b) => request("POST", p, b === undefined ? {} : b),
+    del: (p) => request("DELETE", p),
     el, fmtTime, show, setError, poller,
   };
 })();

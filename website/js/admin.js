@@ -242,6 +242,14 @@
     return d ? d + "d " + h + "h" : h ? h + "h " + m + "m" : m + "m";
   }
 
+  let maxUploadBytes = 64 * 1024 * 1024;
+
+  function fmtBytes(n) {
+    if (n < 1024) return n + " B";
+    if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+    return (n / 1048576).toFixed(1) + " MB";
+  }
+
   async function saveDeadline(b, iso) {
     api.setError("timerError", "");
     try {
@@ -250,6 +258,61 @@
     } catch (e) {
       api.setError("timerError", e.message);
     }
+  }
+
+  // Raw-body .zip upload (not JSON), so a dedicated fetch rather than CryptApi.
+  async function uploadArchive(n, file) {
+    if (!/\.zip$/i.test(file.name)) { api.setError("timerError", "Choose a .zip file."); return; }
+    if (file.size > maxUploadBytes) { api.setError("timerError", "That file is over the " + fmtBytes(maxUploadBytes) + " limit."); return; }
+    api.setError("timerError", "");
+    let res, data = {};
+    try {
+      res = await fetch("/api/admin/biopsies/" + n + "/archive", {
+        method: "PUT",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "X-Crypt-Request": "1", "Content-Type": "application/zip", "X-Filename": file.name },
+        body: file,
+      });
+      try { data = await res.json(); } catch (e) { /* empty */ }
+    } catch (e) {
+      api.setError("timerError", "Upload failed (connection).");
+      return;
+    }
+    if (res.status === 401) { location.reload(); return; }
+    if (!res.ok) { api.setError("timerError", data.error || "Upload failed (" + res.status + ")."); return; }
+    await loadTimers();
+  }
+
+  function archiveCell(b) {
+    const cell = el("td", null);
+    if (b.upload) {
+      cell.appendChild(el("div", { class: "small" },
+        el("span", { class: "badge bg-info text-dark me-1" }, "custom"),
+        b.upload.filename + " · " + fmtBytes(b.upload.size)));
+    } else {
+      cell.appendChild(el("div", { class: "small text-secondary" },
+        "default · " + (b.defaultArchive || "—")));
+    }
+    const file = el("input", { type: "file", accept: ".zip,application/zip", class: "form-control form-control-sm mt-1 timer-file" });
+    const up = el("button", { type: "button", class: "btn btn-sm btn-outline-primary mt-1" }, b.upload ? "Replace" : "Upload");
+    up.addEventListener("click", () => {
+      if (!file.files || !file.files[0]) { api.setError("timerError", "Pick a .zip file first."); return; }
+      up.disabled = true;
+      uploadArchive(b.n, file.files[0]).finally(() => { up.disabled = false; });
+    });
+    let remove = null;
+    if (b.upload) {
+      remove = el("button", { type: "button", class: "btn btn-sm btn-outline-secondary mt-1 ms-1" }, "Remove");
+      remove.addEventListener("click", async () => {
+        if (!confirm("Remove the custom archive for " + b.title + "? The generated default is restored.")) return;
+        api.setError("timerError", "");
+        try { await api.del("/admin/biopsies/" + b.n + "/archive"); await loadTimers(); }
+        catch (e) { api.setError("timerError", e.message); }
+      });
+    }
+    cell.appendChild(el("div", { class: "d-flex align-items-center gap-1 flex-wrap" }, file, up, remove));
+    return cell;
   }
 
   function timerRow(b, now) {
@@ -291,17 +354,19 @@
       deadlineCell,
       el("td", null, status),
       el("td", null, el("div", { class: "d-flex gap-2 align-items-center" }, input, setBtn)),
+      archiveCell(b),
       el("td", { class: "text-end" }, resetBtn),
     );
   }
 
   async function loadTimers() {
     const data = await api.get("/admin/biopsies");
+    if (typeof data.maxUploadBytes === "number") maxUploadBytes = data.maxUploadBytes;
     const now = new Date(data.now).getTime();
     const tbody = document.getElementById("timerTable");
     tbody.replaceChildren();
     if (!data.biopsies.length) {
-      tbody.appendChild(el("tr", null, el("td", { colspan: "6", class: "text-secondary" },
+      tbody.appendChild(el("tr", null, el("td", { colspan: "7", class: "text-secondary" },
         "No biopsies found — the API could not read /biopsies.json from the site.")));
       return;
     }

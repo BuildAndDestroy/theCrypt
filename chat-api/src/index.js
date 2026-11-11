@@ -8,7 +8,7 @@ import { attachUser, requireApiRequest } from "./middleware/auth.js";
 import { authRouter } from "./routes/auth.js";
 import { chatRouter } from "./routes/chat.js";
 import { adminRouter } from "./routes/admin.js";
-import { internalBiopsiesRouter, publicBiopsiesRouter } from "./routes/biopsies.js";
+import { downloadHandler, publicBiopsiesRouter } from "./routes/biopsies.js";
 import { ensureAdmin } from "./bootstrap.js";
 import { connect } from "./lib/db.js";
 import { loadKeys, strict } from "./lib/fieldcrypto.js";
@@ -55,9 +55,10 @@ api.use("/admin", adminRouter);
 api.use((_req, res) => res.status(404).json({ error: "Not found" }));
 app.use("/api", api);
 
-// nginx auth_request target (dump release check). Not under /api, so nginx's
-// public /api/ proxy can't reach it; only its internal /_release location does.
-app.use("/internal", internalBiopsiesRouter);
+// Leak-archive downloads: nginx proxies /biopsy-N/files/<file> here (Pod
+// loopback only). The handler gates on the deadline and serves the default
+// (via X-Accel-Redirect) or a streamed operator override. Not under /api.
+app.get(/^\/biopsy-\d{1,4}\/files\/[^/]+$/, downloadHandler);
 
 // Never leak stack traces, paths or driver errors to the client.
 // eslint-disable-next-line no-unused-vars

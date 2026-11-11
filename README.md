@@ -508,20 +508,45 @@ python3 tools/generate_biopsies.py --count 20 --expired 4 --seed 42 --base-date 
   sector and region, random findings, and a deadline 7–180 days out.
 - **Expired biopsies** are already past their deadline. For a named company,
   set `deadline_days` to 0 or below (currently #6, Altenbrück); for a codename
-  slot, use `--expired N`. Its tile reads
-  **Time's up!** and its case file offers a **Download archive** button. The
-  zip (about 3 MB) is junk in a Windows-looking tree (`C$/Users/...`,
-  `Shares/Finance/...`): random bytes behind `.docx`/`.xlsx`/`.pdf` names,
-  plus lorem-ipsum text and CSV files. A `_README_SIMULATED_DATA.txt` marker
-  at its root says it is simulated. Each expired biopsy gets its own zip.
-- **Deadlines** count from the current hour in UTC, or from `--base-date`. Every
-  timer counts down live (`js/countdown.js`). They don't move by themselves:
-  re-run the generator to reset them, then rebuild the website image.
+  slot, use `--expired N`. Its tile reads **Time's up!** and its case file
+  offers a **Download archive** button.
+- **Leak archives** are generated for *every* biopsy into `dumps/biopsy-N/`
+  (outside the web root), ~3 MB each: junk in a Windows-looking tree
+  (`C$/Users/...`, `Shares/Finance/...`) — random bytes behind
+  `.docx`/`.xlsx`/`.pdf` names, plus lorem-ipsum text and CSV, with a
+  `_README_SIMULATED_DATA.txt` marker saying it is simulated. They are **served
+  only once the biopsy's deadline has passed** (see below), so a pending
+  biopsy's archive can't be fetched early.
+- **Deadlines** count from the current hour in UTC, or from `--base-date`, and
+  are written to `website/biopsies.json` as the defaults. Every timer counts
+  down live (`js/countdown.js`), which also refreshes the live deadlines from
+  the API. Re-run the generator to reset the defaults, then rebuild the image.
 - **Runs are seeded.** The same arguments and base date give the same pages
-  and a byte-identical zip.
+  and byte-identical archives.
 - **Where things go:** tiles are written between the `BIOPSIES:BEGIN/END`
   markers in `index.html`. Edit the generator or `subjects.json` rather than
-  the generated pages.
+  the generated pages. `dumps/` is a build input: the website image copies it,
+  so run the generator before building.
+
+### Countdowns and leak archives (operator-controlled)
+
+The generated deadlines are only the defaults. An operator (a login with the
+`biopsies:manage` permission) controls both the timer and the leaked file per
+biopsy, from the **Countdowns** tab of `/admin/`:
+
+- **Set / reset the deadline.** An override is stored in MongoDB; *Reset* drops
+  it, back to the generated default. Visitors' pages pick up a change within
+  two minutes, or on reload.
+- **Upload a leak archive** (`.zip`, ≤ 64 MiB) to replace the generated default
+  for that biopsy; *Remove* restores the default. Uploads are stored in GridFS.
+  They are **exercise / simulated content** — published to anyone once the
+  deadline passes, exactly like the defaults.
+
+Release is enforced **server-side**: nginx hands every `/biopsy-N/files/*.zip`
+request to chat-api, which serves the archive (the operator's upload, or the
+generated default via `X-Accel-Redirect`) only if that biopsy's deadline has
+passed, and returns `404` otherwise. The check fails closed. This is part of
+the chat-api release; the public read endpoint is `GET /api/public/biopsies`.
 
 ## Operator chat
 

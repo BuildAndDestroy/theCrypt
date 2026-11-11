@@ -1,11 +1,14 @@
-// Biopsy countdowns: public read, operator set/reset, and the internal
-// release check nginx consults before serving a dump.
+// Biopsy countdowns: public read, operator set / reset, per-biopsy archive
+// upload, and the internal download handler nginx hands every dump request to.
 import { Router } from "express";
 import { BiopsyDeadline } from "../models/index.js";
 import { PERMISSIONS } from "../lib/rbac.js";
 import * as v from "../lib/validate.js";
 import { requirePermission } from "../middleware/auth.js";
 import { isReleased, listBiopsies, manifest, resetManifestCache } from "../lib/biopsies.js";
+import {
+  archiveFor, archiveMap, deleteArchive, MAX_ARCHIVE_BYTES, openArchiveDownload, storeArchive, UploadError,
+} from "../lib/archives.js";
 
 const iso = (d) => new Date(d).toISOString();
 
@@ -26,42 +29,87 @@ publicBiopsiesRouter.get("/biopsies", async (_req, res, next) => {
 });
 
 // ----------------------------------------------------------- internal
-// nginx `auth_request` for /biopsy-N/files/*: 204 = serve, 403 = refuse
-// (nginx turns that into a 404). Mounted outside /api, so nginx never
-// proxies it publicly; the API itself listens on the Pod loopback only.
-export const internalBiopsiesRouter = Router();
-internalBiopsiesRouter.get("/biopsies/release", async (req, res) => {
+// nginx hands every /biopsy-N/files/<file> request here (proxy_pass). This is
+// the one place that decides locked-vs-released and default-vs-override:
+//   locked or unknown  -> 404
+//   released, default  -> X-Accel-Redirect to nginx's internal static dumps
+//   released, override -> stream the uploaded archive from GridFS
+// Mounted outside /api, so nginx never exposes it; the API listens on the Pod
+// loopback only, and only nginx's internal locations reach it.
+export async function downloadHandler(req, res) {
   try {
-    const m = /^\/biopsy-(\d{1,4})\/files\/[^/?]+(?:\?.*)?$/.exec(req.get("x-original-uri") ?? "");
-    if (!m) return res.sendStatus(403);
-    res.sendStatus((await isReleased(Number(m[1]))) ? 204 : 403);
+    const uri = req.get("x-original-uri") || req.originalUrl || "";
+    const m = /^\/biopsy-(\d{1,4})\/files\/([A-Za-z0-9._-]+\.zip)(?:\?.*)?$/.exec(uri);
+    if (!m) return res.sendStatus(404);
+    const n = Number(m[1]);
+    const requested = m[2];
+
+    const b = (await manifest()).get(n);
+    if (!b || !b.archive || requested !== b.archive) return res.sendStatus(404); // only the biopsy's own archive name
+    if (!(await isReleased(n))) return res.sendStatus(404); // not published yet
+
+    const override = await archiveFor(n);
+    if (!override) {
+      // Let nginx serve the generated default from the image (efficient, no body through Node).
+      res.setHeader("X-Accel-Redirect", `/_dump_static/biopsy-${n}/${b.archive}`);
+      return res.status(204).end();
+    }
+
+    res.setHeader("Content-Type", override.contentType || "application/zip");
+    res.setHeader("Content-Length", String(override.size));
+    res.setHeader("Content-Disposition", `attachment; filename="${b.archive}"`);
+    res.setHeader("Cache-Control", "no-store");
+    const stream = openArchiveDownload(override.gridId);
+    stream.on("error", (err) => {
+      console.error(`archive stream biopsy-${n}: ${err.message}`);
+      if (!res.headersSent) res.sendStatus(404);
+      else res.destroy();
+    });
+    stream.pipe(res);
   } catch (err) {
-    console.error("release check failed:", err?.message);
-    res.sendStatus(403); // fail closed
+    console.error("download handler failed:", err?.message);
+    if (!res.headersSent) res.sendStatus(404); // fail closed
   }
-});
+}
 
 // -------------------------------------------------------------- admin
 export const adminBiopsiesRouter = Router();
 adminBiopsiesRouter.use(requirePermission(PERMISSIONS.BIOPSIES_MANAGE));
 
-function serializeAdmin(b) {
+function serializeAdmin(b, upload) {
   return {
     n: b.n,
     title: b.title,
-    archive: b.archive,
+    defaultArchive: b.archive,     // generated default filename (served when no upload)
     defaultDeadline: iso(b.defaultDeadline),
     deadline: iso(b.deadline),
-    overridden: b.overridden,
+    overridden: b.overridden,      // deadline differs from the default
     updatedAt: b.updatedAt ? iso(b.updatedAt) : null,
     released: b.released,
+    upload: upload
+      ? { filename: upload.filename, size: upload.size, sha256: upload.sha256, uploadedAt: iso(upload.updatedAt ?? upload.createdAt) }
+      : null,
   };
+}
+
+// One biopsy's admin view, after a change.
+async function adminView(n) {
+  const [b, upload] = await Promise.all([
+    listBiopsies().then((l) => l.find((x) => x.n === n)),
+    archiveFor(n),
+  ]);
+  return serializeAdmin(b, upload);
 }
 
 adminBiopsiesRouter.get("/", async (_req, res, next) => {
   try {
     resetManifestCache(); // the operator should always see the deployed manifest
-    res.json({ now: iso(Date.now()), biopsies: (await listBiopsies()).map(serializeAdmin) });
+    const [list, uploads] = await Promise.all([listBiopsies(), archiveMap()]);
+    res.json({
+      now: iso(Date.now()),
+      maxUploadBytes: MAX_ARCHIVE_BYTES,
+      biopsies: list.map((b) => serializeAdmin(b, uploads.get(b.n))),
+    });
   } catch (err) {
     next(err);
   }
@@ -103,20 +151,50 @@ adminBiopsiesRouter.post("/:n", async (req, res, next) => {
       { $set: { deadline, updatedBy: req.user._id } },
       { upsert: true },
     );
-    const b = (await listBiopsies()).find((x) => x.n === n);
-    res.json({ biopsy: serializeAdmin(b) });
+    res.json({ biopsy: await adminView(n) });
   } catch (err) {
     next(err);
   }
 });
 
-// POST /api/admin/biopsies/:n/reset — back to the generated default.
+// POST /api/admin/biopsies/:n/reset — deadline back to the generated default.
 adminBiopsiesRouter.post("/:n/reset", async (req, res, next) => {
   try {
     const n = await knownBiopsy(req);
     await BiopsyDeadline.deleteOne({ n });
-    const b = (await listBiopsies()).find((x) => x.n === n);
-    res.json({ biopsy: serializeAdmin(b) });
+    res.json({ biopsy: await adminView(n) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/admin/biopsies/:n/archive — upload the leak archive served when the
+// countdown expires (exercise / simulated content). Raw .zip body (not JSON),
+// filename in X-Filename; replaces any previous upload. Still gated by the
+// deadline, so it stays locked until then.
+adminBiopsiesRouter.put("/:n/archive", async (req, res, next) => {
+  try {
+    const n = await knownBiopsy(req);
+    await storeArchive({
+      n,
+      filename: req.get("x-filename"),
+      contentType: req.get("content-type"),
+      source: req,
+      uploadedBy: req.user._id,
+    });
+    res.json({ biopsy: await adminView(n) });
+  } catch (err) {
+    if (err instanceof UploadError) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+// DELETE /api/admin/biopsies/:n/archive — drop the upload (back to the default).
+adminBiopsiesRouter.delete("/:n/archive", async (req, res, next) => {
+  try {
+    const n = await knownBiopsy(req);
+    await deleteArchive(n);
+    res.json({ biopsy: await adminView(n) });
   } catch (err) {
     next(err);
   }
