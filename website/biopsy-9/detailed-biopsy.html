@@ -5,7 +5,7 @@
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biopsy 9 Review</title>
+    <title>Quillon Municipal Credit Union — Case File</title>
     <link href="/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/font/bootstrap-icons.css" rel="stylesheet">
     <link href="/css/custom-styles.min.css" rel="stylesheet">
@@ -30,19 +30,47 @@
 
     <section class="py-5"><div class="container text-center"><span class="section-tag">// Case File SUBJ-D5FA</span></div>
         <div class="container">
-            <h1 class="text-center mb-4">Detailed Review: Biopsy 9</h1>
+            <h1 class="text-center mb-4">Quillon Municipal Credit Union</h1>
             <div class="row">
                 <div class="col-md-8 mx-auto review-body">
-                    <p><strong>Subject:</strong> SUBJ-D5FA &mdash; Architecture, Western Europe.</p>
-                    <p><strong>Profile:</strong> ~1500 employees, annual revenue $140M. 1603 GB of data recovered.</p>
+                    <div class="subject-head">
+                        <div class="subject-mono" aria-hidden="true">QC</div>
+                        <div><div class="subject-name">Quillon Municipal Credit Union</div><div class="subject-domain font-monospace">quilloncu.org</div></div>
+                    </div>
+                    <p>Member-owned credit union serving municipal employees and their families across Pierce County, with 9 branches and online banking.</p>
+                    <table class="table table-dark table-sm subject-table">
+                        <tbody>
+                            <tr><th scope="row">Company</th><td>Quillon Municipal Credit Union</td></tr>
+                            <tr><th scope="row">Website</th><td><span class="font-monospace">quilloncu.org</span></td></tr>
+                            <tr><th scope="row">Headquarters</th><td>3100 Fernhollow Avenue<br>Tacoma, WA 98409<br>United States</td></tr>
+                            <tr><th scope="row">Industry</th><td>Financial services — credit union</td></tr>
+                            <tr><th scope="row">Employees</th><td>~230</td></tr>
+                            <tr><th scope="row">Revenue</th><td>$1.1B in assets</td></tr>
+                            <tr><th scope="row">Data volume</th><td>198 GB &middot; 520K files</td></tr>
+                        </tbody>
+                    </table>
                     <h3>Key Findings</h3>
                     <ul>
-                        <li>Customer database exports found on a file server.</li>
-                        <li>EDR tamper protection disabled across most endpoints.</li>
-                        <li>Service accounts with non-expiring passwords and broad rights.</li>
+                        <li>Initial access via a phished branch employee&#x27;s credentials.</li>
+                        <li>Loan origination documents on an unrestricted file share.</li>
+                        <li>Core banking reports exported daily to a shared folder.</li>
+                        <li>NCUA and state breach notification requirements apply.</li>
                     </ul>
+                    <h3>Data Obtained</h3>
+                    <ul>
+                        <li>Member account and loan files</li>
+                        <li>Loan applications with income and tax documents</li>
+                        <li>Card and ACH processing reports</li>
+                        <li>Examiner reports and compliance files</li>
+                        <li>Staff HR records</li>
+                    </ul>
+                    <h3>Proof &mdash; File Listing (excerpt)</h3>
+                    <pre class="proof-listing">\\qmcu-fs01\Lending\Applications\2025\LA-25-08841.pdf
+\\qmcu-fs01\Operations\Reports\ACH_Exceptions_2025-10.csv
+\\qmcu-fs01\Compliance\Exam\2025_Examination_Report.pdf
+\\qmcu-fs01\HR\Branch_Staff_Roster.xlsx</pre>
                     <h3>Additional Notes</h3>
-                    <p>Publication proceeds automatically when the timer expires.</p>
+                    <p>Members will be contacted if the credit union does not respond.</p>
                 </div>
             </div>
         </div>
@@ -52,7 +80,7 @@
         <div class="container text-center">
             <h2>Countdown to Publication</h2>
             <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
-            <div id="countdown" class="" data-countdown="2026-11-27T00:34:00Z">--d --h --m --s</div>
+            <div id="countdown" class="" data-countdown="2026-12-07T00:00:00Z">--d --h --m --s</div>
 
         </div>
     </section>

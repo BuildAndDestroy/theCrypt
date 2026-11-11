@@ -5,7 +5,7 @@
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biopsy 6 Review</title>
+    <title>Altenbrück Präzisionsteile — Case File</title>
     <link href="/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/font/bootstrap-icons.css" rel="stylesheet">
     <link href="/css/custom-styles.min.css" rel="stylesheet">
@@ -30,19 +30,47 @@
 
     <section class="py-5"><div class="container text-center"><span class="section-tag">// Case File SUBJ-5A26</span></div>
         <div class="container">
-            <h1 class="text-center mb-4">Detailed Review: Biopsy 6</h1>
+            <h1 class="text-center mb-4">Altenbrück Präzisionsteile GmbH</h1>
             <div class="row">
                 <div class="col-md-8 mx-auto review-body">
-                    <p><strong>Subject:</strong> SUBJ-5A26 &mdash; Hospitality, North America.</p>
-                    <p><strong>Profile:</strong> ~4000 employees, annual revenue $45M. 914 GB of data recovered.</p>
+                    <div class="subject-head">
+                        <div class="subject-mono" aria-hidden="true">AP</div>
+                        <div><div class="subject-name">Altenbrück Präzisionsteile GmbH</div><div class="subject-domain font-monospace">altenbrueck-praezision.de</div></div>
+                    </div>
+                    <p>Tier-2 automotive supplier machining precision components for drivetrain and braking systems, with plants in Waiblingen and Győr.</p>
+                    <table class="table table-dark table-sm subject-table">
+                        <tbody>
+                            <tr><th scope="row">Company</th><td>Altenbrück Präzisionsteile GmbH</td></tr>
+                            <tr><th scope="row">Website</th><td><span class="font-monospace">altenbrueck-praezision.de</span></td></tr>
+                            <tr><th scope="row">Headquarters</th><td>Lindenhofweg 12<br>71336 Waiblingen<br>Baden-Württemberg, Germany</td></tr>
+                            <tr><th scope="row">Industry</th><td>Precision manufacturing (automotive supplier)</td></tr>
+                            <tr><th scope="row">Employees</th><td>~780</td></tr>
+                            <tr><th scope="row">Revenue</th><td>€156M (FY2025)</td></tr>
+                            <tr><th scope="row">Data volume</th><td>905 GB &middot; 2.8M files</td></tr>
+                        </tbody>
+                    </table>
                     <h3>Key Findings</h3>
                     <ul>
-                        <li>EDR tamper protection disabled across most endpoints.</li>
-                        <li>Hypervisor management interface exposed internally without MFA.</li>
-                        <li>Board-level meeting minutes included in the dataset.</li>
+                        <li>Initial access via an exposed VPN appliance with a known vulnerability.</li>
+                        <li>Engineering file server shared with production network.</li>
+                        <li>OEM customer drawings stored without access restrictions.</li>
+                        <li>No offline backups.</li>
                     </ul>
+                    <h3>Data Obtained</h3>
+                    <ul>
+                        <li>CAD drawings and engineering specifications</li>
+                        <li>OEM supply contracts and quality agreements</li>
+                        <li>Production and quality data (SAP exports)</li>
+                        <li>HR and payroll</li>
+                        <li>Finance and controlling</li>
+                    </ul>
+                    <h3>Proof &mdash; File Listing (excerpt)</h3>
+                    <pre class="proof-listing">\\ap-fs01\Konstruktion\Zeichnungen\OEM-C\Bremssattel_Rev_F.pdf
+\\ap-fs01\Vertrieb\Verträge\Liefervertrag_OEM_C_2024.pdf
+\\ap-sap01\Export\QM_Prüfberichte_2025.csv
+\\ap-fs01\Personal\Gehälter_2025-10.xlsx</pre>
                     <h3>Additional Notes</h3>
-                    <p>Negotiation window is open. Contact via the secure channel with your key.</p>
+                    <p>Altenbrück refused to negotiate. The deadline has passed and the data is published.</p>
                 </div>
             </div>
         </div>
@@ -50,10 +78,14 @@
 
     <section class="py-5" id="timer-section">
         <div class="container text-center">
-            <h2>Countdown to Publication</h2>
-            <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
-            <div id="countdown" class="" data-countdown="2027-03-09T17:53:00Z">--d --h --m --s</div>
-
+            <h2>Time's up</h2>
+            <p>This subject did not come to the table.</p>
+            <div id="countdown" class="expired" data-countdown="2026-11-08T00:00:00Z">Time's up!</div>
+            <div class="leak-download mt-4">
+                <p class="text-secondary mb-3">The deadline passed. The dataset has been published.</p>
+                <a class="btn btn-primary btn-lg" href="files/altenbrueck-praezision-dump.zip" download><i class="bi bi-file-earmark-zip"></i> Download archive</a>
+                <div class="small text-secondary mt-3 font-monospace">altenbrueck-praezision-dump.zip &middot; 3.1 MB &middot; 133 files<br>SHA-256 547efcfa69545fa2d44d5124f7d93c5b3e5a1032c8ac0d16e4a672ddddd47ff1</div>
+            </div>
         </div>
     </section>
 

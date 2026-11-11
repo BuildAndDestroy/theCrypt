@@ -1,0 +1,377 @@
+{
+  "_comment": "Named (fictitious) subjects for tools/generate_biopsies.py. Each entry replaces the anonymous codename at biopsy number `slot`. deadline_days counts from --base-date; zero or negative means the deadline has passed (Time's up + junk download). All companies, addresses and details are invented for threat emulation; domains were checked unregistered.",
+  "subjects": [
+    {
+      "slot": 1,
+      "name": "Tenmarch Water Utilities LLC",
+      "short_name": "Tenmarch Water Utilities",
+      "monogram": "TW",
+      "domain": "tenmarch-water.com",
+      "address": [
+        "2400 Cedar Hollow Parkway, Suite 500",
+        "Columbus, Ohio",
+        "OH 43240, United States"
+      ],
+      "sector": "Water & wastewater utilities",
+      "region": "North America",
+      "employees": 410,
+      "revenue": "$88M (FY2025)",
+      "deadline_days": 28,
+      "data_gb": 540,
+      "file_count": "1.1M",
+      "summary": "Regional water and wastewater utility serving several municipalities, operating treatment plants, pumping stations and a SCADA-controlled distribution network alongside customer billing and metering services.",
+      "categories": [
+        "Customer billing records (names, addresses, bank/ACH details)",
+        "SCADA and plant control configuration exports",
+        "Network diagrams for treatment and distribution sites",
+        "Operational technology credentials and VPN configs",
+        "Municipal service contracts and compliance filings",
+        "HR, payroll and employee records",
+        "Finance: management accounts, audit working papers, tax"
+      ],
+      "findings": [
+        "Initial access through a reused VPN credential without MFA.",
+        "Domain admin obtained from a plaintext password in an IT share.",
+        "Flat network with no segmentation between the business LAN and the OT/SCADA VLAN.",
+        "Production database backups stored on a file server reachable from the office network.",
+        "Customers and the state utility regulator will be notified at publication."
+      ],
+      "samples": [
+        "\\\\tw-fs01\\Finance\\FY2025\\Management Accounts\\MA_2025-09_FINAL.xlsx",
+        "\\\\tw-fs01\\Finance\\Audit\\2025\\Working Papers\\WP-Revenue.xlsx",
+        "\\\\tw-fs01\\HR\\Payroll\\2025\\Payroll_Run_2025-10.csv",
+        "\\\\tw-fs01\\Legal\\Municipal\\Service Agreement - District 4.pdf",
+        "\\\\tw-fs02\\Operations\\SCADA\\plant3_config_export_2025-10.zip",
+        "\\\\tw-fs02\\Operations\\Network\\distribution_network_diagram_v9.vsdx",
+        "\\\\tw-sql03\\Backups\\Billing_PROD_2025-10-31.bak",
+        "\\\\tw-git01\\repos\\meter-portal\\deploy\\prod.env"
+      ],
+      "note": "Tenmarch was contacted and has not responded. Municipal clients and customers named in the data will be informed before publication."
+    },
+    {
+      "slot": 2,
+      "name": "Thornlea Freight Solutions Ltd",
+      "short_name": "Thornlea Freight Solutions",
+      "monogram": "TF",
+      "domain": "thornlea-freight.co.uk",
+      "address": [
+        "Unit 7, Ashwell Road Distribution Park",
+        "Leeds LS12 4QT",
+        "West Yorkshire, United Kingdom"
+      ],
+      "sector": "Logistics & freight forwarding",
+      "region": "United Kingdom",
+      "employees": 520,
+      "revenue": "£74M (FY2025)",
+      "deadline_days": 5,
+      "data_gb": 388,
+      "file_count": "910K",
+      "summary": "Road freight, warehousing and customs brokerage for retailers and manufacturers across the UK and Ireland, operating four distribution centres and a fleet of 180 HGVs.",
+      "categories": [
+        "Customer contracts and rate cards",
+        "Customs declarations and shipping manifests",
+        "Driver records, licences and tachograph data",
+        "Payroll and HR files",
+        "Finance: invoices, credit control, bank statements",
+        "Warehouse management system database exports"
+      ],
+      "findings": [
+        "Initial access via a phishing email to the accounts payable team.",
+        "Remote desktop exposed on a legacy depot server.",
+        "Backups encrypted alongside production; offsite copies months old.",
+        "Transport management system credentials stored in a shared spreadsheet."
+      ],
+      "samples": [
+        "\\\\tfs-fs01\\Finance\\Credit Control\\Aged_Debtors_2025-10.xlsx",
+        "\\\\tfs-fs01\\Commercial\\Contracts\\Rate Card - Retail Client B.pdf",
+        "\\\\tfs-fs01\\HR\\Drivers\\Licence_Checks_2025.xlsx",
+        "\\\\tfs-fs02\\Customs\\2025\\CDS_Declarations_Q3.csv",
+        "\\\\tfs-wms01\\Exports\\WMS_Inventory_Snapshot.csv",
+        "\\\\tfs-fs01\\IT\\Passwords_DO_NOT_SHARE.xlsx"
+      ],
+      "note": "Thornlea opened negotiations and then went silent. Retail clients will receive their shipment and pricing data first."
+    },
+    {
+      "slot": 3,
+      "name": "Calderbrook Dental Partners, PLLC",
+      "short_name": "Calderbrook Dental Partners",
+      "monogram": "CD",
+      "domain": "calderbrook-dental.com",
+      "address": [
+        "2280 Larkspur Commons Drive, Suite 300",
+        "Columbus, OH 43235",
+        "United States"
+      ],
+      "sector": "Healthcare — dental group",
+      "region": "United States",
+      "employees": 410,
+      "revenue": "$63M (FY2025)",
+      "deadline_days": 12,
+      "data_gb": 274,
+      "file_count": "2.1M",
+      "summary": "Multi-site dental group operating 22 practices across Ohio and Indiana, with centralised billing, imaging and patient scheduling.",
+      "categories": [
+        "Patient records and treatment histories",
+        "Dental imaging (X-ray, CBCT)",
+        "Insurance claims and billing data",
+        "Staff credentials, HR and payroll",
+        "Practice acquisition agreements",
+        "Accounting and tax records"
+      ],
+      "findings": [
+        "Initial access through an unpatched remote-support tool used by the IT vendor.",
+        "Practice management database reachable from every clinic workstation.",
+        "No network segmentation between clinics and the head office.",
+        "HIPAA breach notification obligations apply to the affected patients."
+      ],
+      "samples": [
+        "\\\\cdp-fs01\\Billing\\Claims\\2025\\ERA_Remittance_2025-09.csv",
+        "\\\\cdp-fs01\\Finance\\Acquisitions\\LOI - Practice 23.pdf",
+        "\\\\cdp-img01\\Imaging\\Archive\\2025\\10\\batch_0412.zip",
+        "\\\\cdp-sql01\\Backups\\PracticeMgmt_PROD.bak",
+        "\\\\cdp-fs01\\HR\\Credentialing\\Provider_Licences.xlsx"
+      ],
+      "note": "Calderbrook declined to engage. Patients and insurers listed in the data will be contacted at publication."
+    },
+    {
+      "slot": 4,
+      "name": "Kessler & Aune Advokatfirma AS",
+      "short_name": "Kessler & Aune Advokatfirma",
+      "monogram": "KA",
+      "domain": "kessler-aune.no",
+      "address": [
+        "Brattvågsgaten 6",
+        "5013 Bergen",
+        "Norway"
+      ],
+      "sector": "Legal services",
+      "region": "Norway",
+      "employees": 95,
+      "revenue": "NOK 210M (FY2025)",
+      "deadline_days": 19,
+      "data_gb": 143,
+      "file_count": "640K",
+      "summary": "Commercial law firm advising shipping, seafood and energy clients on contracts, M&A, disputes and regulatory matters.",
+      "categories": [
+        "Client matter files and correspondence",
+        "M&A due-diligence data rooms",
+        "Litigation strategy documents",
+        "Partner and staff email archives",
+        "Billing, time records and trust accounts"
+      ],
+      "findings": [
+        "Initial access via a compromised Microsoft 365 account with no MFA.",
+        "Document management system exported in full over three nights.",
+        "Client data room credentials stored in partner mailboxes.",
+        "Data from several listed companies' pending transactions is included."
+      ],
+      "samples": [
+        "\\\\ka-dms01\\Matters\\2025\\M-2025-0187 Vessel Sale\\SPA_draft_v7.docx",
+        "\\\\ka-dms01\\Matters\\2025\\M-2025-0211 Arbitration\\Strategy_Memo.docx",
+        "\\\\ka-fs01\\Finance\\Klientkonto\\2025-10.xlsx",
+        "\\\\ka-fs01\\Partners\\Compensation_2025.xlsx"
+      ],
+      "note": "The firm's clients are being contacted individually."
+    },
+    {
+      "slot": 5,
+      "name": "Marrowfield College of Applied Technology",
+      "short_name": "Marrowfield College",
+      "monogram": "MC",
+      "domain": "marrowfieldcollege.ca",
+      "address": [
+        "1450 Marrowfield Road",
+        "Kitchener, Ontario N2R 0A9",
+        "Canada"
+      ],
+      "sector": "Higher education",
+      "region": "Canada",
+      "employees": 1150,
+      "revenue": "C$148M (FY2025)",
+      "deadline_days": 33,
+      "data_gb": 1240,
+      "file_count": "3.6M",
+      "summary": "Public college offering diploma and apprenticeship programmes in engineering, trades, health and IT to 14,000 full-time students.",
+      "categories": [
+        "Student records, transcripts and financial aid files",
+        "Staff HR and payroll",
+        "Research grant applications",
+        "Finance and procurement",
+        "Active Directory and IT documentation"
+      ],
+      "findings": [
+        "Initial access via a student portal vulnerability.",
+        "Domain admin from a service account with a password unchanged since 2017.",
+        "Research shares and finance on the same flat network as student labs.",
+        "Backups on network storage joined to the domain."
+      ],
+      "samples": [
+        "\\\\mc-fs01\\Registrar\\Transcripts\\2025\\Fall_Cohort_Export.csv",
+        "\\\\mc-fs01\\FinancialAid\\OSAP\\2025-26_Disbursements.xlsx",
+        "\\\\mc-fs02\\Research\\Grants\\NSERC_Application_Draft.docx",
+        "\\\\mc-fs01\\HR\\Payroll\\Faculty_Salary_Grid_2025.xlsx"
+      ],
+      "note": "Marrowfield has until the timer runs out to come to the table."
+    },
+    {
+      "slot": 6,
+      "name": "Altenbrück Präzisionsteile GmbH",
+      "short_name": "Altenbrück Präzisionsteile",
+      "monogram": "AP",
+      "domain": "altenbrueck-praezision.de",
+      "address": [
+        "Lindenhofweg 12",
+        "71336 Waiblingen",
+        "Baden-Württemberg, Germany"
+      ],
+      "sector": "Precision manufacturing (automotive supplier)",
+      "region": "Germany",
+      "employees": 780,
+      "revenue": "€156M (FY2025)",
+      "deadline_days": -3,
+      "data_gb": 905,
+      "file_count": "2.8M",
+      "summary": "Tier-2 automotive supplier machining precision components for drivetrain and braking systems, with plants in Waiblingen and Győr.",
+      "categories": [
+        "CAD drawings and engineering specifications",
+        "OEM supply contracts and quality agreements",
+        "Production and quality data (SAP exports)",
+        "HR and payroll",
+        "Finance and controlling"
+      ],
+      "findings": [
+        "Initial access via an exposed VPN appliance with a known vulnerability.",
+        "Engineering file server shared with production network.",
+        "OEM customer drawings stored without access restrictions.",
+        "No offline backups."
+      ],
+      "samples": [
+        "\\\\ap-fs01\\Konstruktion\\Zeichnungen\\OEM-C\\Bremssattel_Rev_F.pdf",
+        "\\\\ap-fs01\\Vertrieb\\Verträge\\Liefervertrag_OEM_C_2024.pdf",
+        "\\\\ap-sap01\\Export\\QM_Prüfberichte_2025.csv",
+        "\\\\ap-fs01\\Personal\\Gehälter_2025-10.xlsx"
+      ],
+      "note": "Altenbrück refused to negotiate. The deadline has passed and the data is published."
+    },
+    {
+      "slot": 7,
+      "name": "Solvantis Biologics Pty Ltd",
+      "short_name": "Solvantis Biologics",
+      "monogram": "SB",
+      "domain": "solvantis-bio.com.au",
+      "address": [
+        "Level 3, 220 Wellbeck Street",
+        "Parkville VIC 3052",
+        "Australia"
+      ],
+      "sector": "Biotech — contract research",
+      "region": "Australia",
+      "employees": 160,
+      "revenue": "A$41M (FY2025)",
+      "deadline_days": 9,
+      "data_gb": 530,
+      "file_count": "780K",
+      "summary": "Contract research organisation running preclinical and early-phase studies for pharmaceutical sponsors in Australia and Asia-Pacific.",
+      "categories": [
+        "Sponsor study protocols and results",
+        "Laboratory information system exports",
+        "Intellectual property and patent drafts",
+        "Sponsor contracts and pricing",
+        "Staff records"
+      ],
+      "findings": [
+        "Initial access via a compromised third-party lab equipment vendor account.",
+        "LIMS database credentials in a script on a shared drive.",
+        "Sponsor data from multiple pharmaceutical companies co-mingled.",
+        "Unreleased study results are included in the dataset."
+      ],
+      "samples": [
+        "\\\\sb-fs01\\Studies\\SPN-0412\\Protocol_v3.pdf",
+        "\\\\sb-fs01\\Studies\\SPN-0398\\Interim_Results.xlsx",
+        "\\\\sb-lims01\\Exports\\Samples_2025Q3.csv",
+        "\\\\sb-fs01\\BD\\Sponsor Pricing 2026.xlsx"
+      ],
+      "note": "Sponsors named in the data will be notified directly."
+    },
+    {
+      "slot": 8,
+      "name": "Corvane Hotels & Resorts, S.A.",
+      "short_name": "Corvane Hotels & Resorts",
+      "monogram": "CH",
+      "domain": "corvanehotels.com",
+      "address": [
+        "Rua das Gaivotas Altas 18",
+        "1200-470 Lisboa",
+        "Portugal"
+      ],
+      "sector": "Hospitality",
+      "region": "Portugal",
+      "employees": 1900,
+      "revenue": "€212M (FY2025)",
+      "deadline_days": 47,
+      "data_gb": 760,
+      "file_count": "1.9M",
+      "summary": "Hotel group operating 14 city and resort properties in Portugal, Spain and Madeira, with a central reservations and loyalty platform.",
+      "categories": [
+        "Guest reservations and loyalty member profiles",
+        "Passport scans collected at check-in",
+        "Corporate client rate agreements",
+        "Staff HR and payroll",
+        "Property finance and owner reports"
+      ],
+      "findings": [
+        "Initial access via a reservation-system integration API key leaked in a public code repository.",
+        "Loyalty database exported over a weekend without alerting.",
+        "Passport scans stored in plaintext on a shared drive.",
+        "GDPR notification to the Portuguese supervisory authority (CNPD) applies."
+      ],
+      "samples": [
+        "\\\\chr-fs01\\Reservas\\Exports\\Loyalty_Members_2025.csv",
+        "\\\\chr-fs01\\FrontOffice\\Checkin\\Passaportes\\2025-10",
+        "\\\\chr-fs01\\Comercial\\Corporate Rates 2026.xlsx",
+        "\\\\chr-fs01\\RH\\Salários_2025-10.xlsx"
+      ],
+      "note": "Corvane has been given extra time due to the volume of guest data involved."
+    },
+    {
+      "slot": 9,
+      "name": "Quillon Municipal Credit Union",
+      "short_name": "Quillon Municipal Credit Union",
+      "monogram": "QC",
+      "domain": "quilloncu.org",
+      "address": [
+        "3100 Fernhollow Avenue",
+        "Tacoma, WA 98409",
+        "United States"
+      ],
+      "sector": "Financial services — credit union",
+      "region": "United States",
+      "employees": 230,
+      "revenue": "$1.1B in assets",
+      "deadline_days": 26,
+      "data_gb": 198,
+      "file_count": "520K",
+      "summary": "Member-owned credit union serving municipal employees and their families across Pierce County, with 9 branches and online banking.",
+      "categories": [
+        "Member account and loan files",
+        "Loan applications with income and tax documents",
+        "Card and ACH processing reports",
+        "Examiner reports and compliance files",
+        "Staff HR records"
+      ],
+      "findings": [
+        "Initial access via a phished branch employee's credentials.",
+        "Loan origination documents on an unrestricted file share.",
+        "Core banking reports exported daily to a shared folder.",
+        "NCUA and state breach notification requirements apply."
+      ],
+      "samples": [
+        "\\\\qmcu-fs01\\Lending\\Applications\\2025\\LA-25-08841.pdf",
+        "\\\\qmcu-fs01\\Operations\\Reports\\ACH_Exceptions_2025-10.csv",
+        "\\\\qmcu-fs01\\Compliance\\Exam\\2025_Examination_Report.pdf",
+        "\\\\qmcu-fs01\\HR\\Branch_Staff_Roster.xlsx"
+      ],
+      "note": "Members will be contacted if the credit union does not respond."
+    }
+  ]
+}
