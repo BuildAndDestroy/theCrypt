@@ -5,7 +5,7 @@
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biopsy 8 Review</title>
+    <title>Corvane Hotels &amp; Resorts — Case File</title>
     <link href="/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/font/bootstrap-icons.css" rel="stylesheet">
     <link href="/css/custom-styles.min.css" rel="stylesheet">
@@ -30,19 +30,47 @@
 
     <section class="py-5"><div class="container text-center"><span class="section-tag">// Case File SUBJ-664F</span></div>
         <div class="container">
-            <h1 class="text-center mb-4">Detailed Review: Biopsy 8</h1>
+            <h1 class="text-center mb-4">Corvane Hotels &amp; Resorts, S.A.</h1>
             <div class="row">
                 <div class="col-md-8 mx-auto review-body">
-                    <p><strong>Subject:</strong> SUBJ-664F &mdash; Automotive, Central Europe.</p>
-                    <p><strong>Profile:</strong> ~250 employees, annual revenue $90M. 1496 GB of data recovered.</p>
+                    <div class="subject-head">
+                        <div class="subject-mono" aria-hidden="true">CH</div>
+                        <div><div class="subject-name">Corvane Hotels &amp; Resorts, S.A.</div><div class="subject-domain font-monospace">corvanehotels.com</div></div>
+                    </div>
+                    <p>Hotel group operating 14 city and resort properties in Portugal, Spain and Madeira, with a central reservations and loyalty platform.</p>
+                    <table class="table table-dark table-sm subject-table">
+                        <tbody>
+                            <tr><th scope="row">Company</th><td>Corvane Hotels &amp; Resorts, S.A.</td></tr>
+                            <tr><th scope="row">Website</th><td><span class="font-monospace">corvanehotels.com</span></td></tr>
+                            <tr><th scope="row">Headquarters</th><td>Rua das Gaivotas Altas 18<br>1200-470 Lisboa<br>Portugal</td></tr>
+                            <tr><th scope="row">Industry</th><td>Hospitality</td></tr>
+                            <tr><th scope="row">Employees</th><td>~1900</td></tr>
+                            <tr><th scope="row">Revenue</th><td>€212M (FY2025)</td></tr>
+                            <tr><th scope="row">Data volume</th><td>760 GB &middot; 1.9M files</td></tr>
+                        </tbody>
+                    </table>
                     <h3>Key Findings</h3>
                     <ul>
-                        <li>Engineering drawings and supplier contracts copied.</li>
-                        <li>EDR tamper protection disabled across most endpoints.</li>
-                        <li>Service accounts with non-expiring passwords and broad rights.</li>
+                        <li>Initial access via a reservation-system integration API key leaked in a public code repository.</li>
+                        <li>Loyalty database exported over a weekend without alerting.</li>
+                        <li>Passport scans stored in plaintext on a shared drive.</li>
+                        <li>GDPR notification to the Portuguese supervisory authority (CNPD) applies.</li>
                     </ul>
+                    <h3>Data Obtained</h3>
+                    <ul>
+                        <li>Guest reservations and loyalty member profiles</li>
+                        <li>Passport scans collected at check-in</li>
+                        <li>Corporate client rate agreements</li>
+                        <li>Staff HR and payroll</li>
+                        <li>Property finance and owner reports</li>
+                    </ul>
+                    <h3>Proof &mdash; File Listing (excerpt)</h3>
+                    <pre class="proof-listing">\\chr-fs01\Reservas\Exports\Loyalty_Members_2025.csv
+\\chr-fs01\FrontOffice\Checkin\Passaportes\2025-10
+\\chr-fs01\Comercial\Corporate Rates 2026.xlsx
+\\chr-fs01\RH\Salários_2025-10.xlsx</pre>
                     <h3>Additional Notes</h3>
-                    <p>Sample files available to verified representatives on request.</p>
+                    <p>Corvane has been given extra time due to the volume of guest data involved.</p>
                 </div>
             </div>
         </div>
@@ -52,7 +80,7 @@
         <div class="container text-center">
             <h2>Countdown to Publication</h2>
             <p>Unless we hear from the subject, the data is published when the timer runs out:</p>
-            <div id="countdown" class="" data-countdown="2027-02-25T19:27:00Z">--d --h --m --s</div>
+            <div id="countdown" class="" data-countdown="2026-12-28T00:00:00Z">--d --h --m --s</div>
 
         </div>
     </section>

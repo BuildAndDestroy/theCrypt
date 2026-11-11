@@ -36,6 +36,7 @@ cannot be made to leak to a third party.
 ```
 website/                      static site (HTML/CSS/JS, favicon)
 website/biopsy-N/             generated case files (one per Death Row tile)
+tools/subjects.json           named fictitious companies for the generator
 tools/generate_biopsies.py    generates the biopsy pages, tiles and leak archive
 website/chat/                 customer chat page (register with key / sign in)
 website/admin/                operator console (inbox, replies, access keys)
@@ -77,12 +78,12 @@ on edits under `chat-api/src/` (if a save isn't picked up, run
 
 `docker compose down -v` also wipes the dev database.
 
-## Deploy to Kubernetes
 The dev API uses a fixed, **public** field-encryption key from
 `docker-compose.yml` (dev only — deployments generate their own) with
 `STRICT_ENCRYPTION=true`. A dev database from before encryption at rest holds
 plaintext the API refuses: `docker compose down -v` to start over.
 
+## Deploy to Kubernetes
 
 A walkthrough for a fresh cluster. Everything lives in the `tor-hidden-ns`
 namespace. You need:
@@ -126,9 +127,8 @@ Day-2 operations:
 | `undeploy.sh [--delete-pvc]` | Take the site offline. Secrets and the namespace are kept, so the same onion comes back on the next deploy. |
 | `secrets.sh apply` | Push edits from `secrets.local.env` to the cluster. Prefer `deploy.sh`, which does this **and** restarts the pods so they pick up the new values. |
 | `secrets.sh pull` | Rebuild `secrets.local.env` from the cluster, e.g. on a new workstation. |
-| `verify-mongo-app-user.sh` / `mongo-bootstrap-app-user.sh` | Check the app user can log in to MongoDB / (re)create it with the current password. |
 | `secrets.sh add-data-key` | Pre-encryption install: add a new `DATA_KEY` to `secrets.local.env` (refuses if one exists in the file or the cluster). |
-
+| `verify-mongo-app-user.sh` / `mongo-bootstrap-app-user.sh` | Check the app user can log in to MongoDB / (re)create it with the current password. |
 | `upgrade-encryption.sh` | Runbook: upgrade a running pre-encryption install to encryption at rest ([below](#upgrading-to-encryption-at-rest)). |
 | `mongo-tls.sh generate\|renew\|apply\|status` | Private CA + server cert for MongoDB TLS, and the `mongo-tls` Secret. |
 | `upgrade-mongo-tls.sh` | Runbook: turn on chat-api ↔ MongoDB TLS on a running site, in stages ([below](#mongodb-tls)). |
@@ -140,10 +140,10 @@ Day-2 operations:
 | `STRICT_ENCRYPTION` | `true` | `true`: chat-api refuses plaintext rows. `false` only while upgrading from a pre-encryption release. |
 | `MONGO_TLS_MODE` | `disabled` | mongod TLS: `disabled`, `allowTLS`, `preferTLS` (TLS and plaintext), `requireTLS`. Anything but `disabled` needs the `mongo-tls` Secret. |
 | `MONGO_TLS` | `false` | `true`: chat-api connects over TLS and verifies the server cert against the private CA. Needs `MONGO_TLS_MODE` ≠ `disabled`. |
+
 **Back up `secrets.local.env`** together with `tor/hidden_service/`. The
 MongoDB passwords in it are fixed the first time MongoDB starts.
 
-The numbered steps below are the same process by hand.
 > **`DATA_KEY` is the only key to the chat data.** Every email, phone number
 > and message body in MongoDB is encrypted with it (AES-256-GCM). **Lose it
 > and that data is gone for good** — there is no recovery. Back it up
@@ -151,6 +151,7 @@ The numbered steps below are the same process by hand.
 > with its key protects nothing). `secrets.sh apply` refuses to replace a
 > different key already in the cluster.
 
+The numbered steps below are the same process by hand.
 
 ### 1. Build and push the images
 
@@ -187,6 +188,36 @@ The key is your identity — keep `tor/hidden_service/` **out of git** (it is
 in `.gitignore`) and out of any image. Back it up somewhere safe: lose it and
 you lose the address.
 
+#### Optional: a vanity address
+
+Want the address to start with a word (like `morgue…`)? Generate the key with
+[mkp224o](https://github.com/cathugger/mkp224o) instead. Each character of
+prefix makes the search ~32× longer: 6 characters takes under a minute on a
+multi-core desktop, 7 roughly 10–30 minutes, 8 several hours.
+
+```
+git clone --depth 1 --branch v1.7.0 https://github.com/cathugger/mkp224o.git
+cd mkp224o && ./autogen.sh && ./configure && make      # needs libsodium-dev
+./mkp224o morgue -n 5 -d ../vanity                     # 5 candidates to pick from
+```
+
+Each candidate is a folder named after its address, holding
+`hs_ed25519_secret_key`, `hs_ed25519_public_key` and `hostname`. Copy the one you
+like to `tor/hidden_service/` (mode `700`, files `600`) and delete the rest.
+
+To **switch a running site** to a new key (the old address stops working):
+
+```
+mv tor/hidden_service tor/hidden_service_old            # keep the old key
+# ... put the new key in tor/hidden_service/ ...
+kubectl -n tor-hidden-ns create secret generic onion-key \
+  --from-file=hs_ed25519_secret_key=tor/hidden_service/hs_ed25519_secret_key \
+  --from-file=hs_ed25519_public_key=tor/hidden_service/hs_ed25519_public_key \
+  --from-file=hostname=tor/hidden_service/hostname \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n tor-hidden-ns rollout restart deploy/thecrypt
+```
+
 ### 3. Create the namespace and Secrets
 
 Nothing secret is ever committed; it all goes into Kubernetes Secrets.
@@ -217,6 +248,10 @@ kubectl -n tor-hidden-ns create secret generic chat-admin \
   --from-literal=email=operator@example.invalid \
   --from-literal=password="$(openssl rand -base64 24)" \
   --from-literal=totp_secret="$(head -c 20 /dev/urandom | base32 | tr -d '=')"
+
+# Field-encryption master key (32 random bytes, base64). BACK IT UP.
+kubectl -n tor-hidden-ns create secret generic chat-data-key \
+  --from-literal=data_key="$(openssl rand -base64 32)"
 ```
 
 Notes:
@@ -231,6 +266,9 @@ Notes:
 - **Back up `mongo-auth`.** MongoDB only reads it the first time it starts on
   an empty data directory; changing it later does not change the stored
   users, and without it you cannot reach the data on the share.
+- **Back up `chat-data-key`, apart from database backups.** Without it the
+  encrypted emails, phone numbers and messages cannot be read — ever. The API
+  refuses to start without it.
 
 ### 4. Deploy MongoDB (chat storage)
 
@@ -250,10 +288,6 @@ kubectl -n tor-hidden-ns get pods -w        # wait for thecrypt-mongo-0 1/1
 `kubernetes.io/hostname: <pi5-node>` in your copy.)
 
 > **Availability:** MongoDB is a single replica pinned to one node. If that
-
-# Field-encryption master key (32 random bytes, base64). BACK IT UP.
-kubectl -n tor-hidden-ns create secret generic chat-data-key \
-  --from-literal=data_key="$(openssl rand -base64 32)"
 > node goes down, the static site keeps serving (its Pod runs elsewhere) but
 > the chat is unavailable until the node returns; nothing is lost, because
 > the data lives on the NFS share. On a Pi cluster where the only Pi 5 is
@@ -268,9 +302,6 @@ thecrypt-mongo-0 | grep "app user"` should print `Created app user crypt-app`.
 
 ```
 kubectl apply -f kubernetes/deployment-sidecar.yaml
-- **Back up `chat-data-key`, apart from database backups.** Without it the
-  encrypted emails, phone numbers and messages cannot be read — ever. The API
-  refuses to start without it.
 kubectl -n tor-hidden-ns rollout status deploy/thecrypt
 ```
 
@@ -334,6 +365,17 @@ An initContainer stages the onion key into the Tor DataDirectory with the
 right permissions (dir `0700`, files `0600`); `fsGroup` lets it do so without
 running as root.
 
+**Data at rest:** emails, phone numbers and message bodies are encrypted by
+chat-api before they reach MongoDB (AES-256-GCM, key in the `chat-data-key`
+Secret; emails are looked up through an HMAC blind index), so the NFS share,
+NAS snapshots and database dumps hold ciphertext. This does not protect
+against someone who controls the chat-api Pod or can read the cluster's
+Secrets. Passwords are hashed with Argon2id.
+
+**Data in transit inside the cluster:** chat-api ↔ MongoDB can use TLS with a
+private CA ([MongoDB TLS](#mongodb-tls)); the NetworkPolicy already limits who
+can connect.
+
 > Scaling: keep `replicas: 1`. The onion identity is a single private key;
 > running it on several Pods means [OnionBalance](https://onionbalance.readthedocs.io/),
 > a deliberate extra setup.
@@ -350,52 +392,6 @@ kubectl apply -f kubernetes/deployment-sidecar.yaml
 Chat data, accounts and keys stay on the NFS share across updates; the onion
 address stays the same as long as the `onion-key` Secret does.
 
-### Troubleshooting
-
-| Symptom | Cause / fix |
-|---------|-------------|
-| Pod stuck in `CreateContainerConfigError` / `ContainerCreating` | A Secret is missing — `kubectl -n tor-hidden-ns describe pod <pod>` names it (step 3; `chat-data-key`: `secrets.sh apply`; `mongo-tls`: `mongo-tls.sh apply`). |
-| chat-api exits: `DATA_KEY is not set` | No `chat-data-key` Secret. New install: `secrets.sh apply`. Pre-encryption install: `upgrade-encryption.sh`. |
-| chat-api exits: `unencrypted (pre-upgrade) rows found while STRICT_ENCRYPTION=true` | Upgraded without migrating. Set `STRICT_ENCRYPTION=false`, `deploy.sh`, run `migrate.js` (upgrade runbook step 5). |
-| `secrets.sh apply` says `REFUSING: DATA_KEY ... differs` | Your file's key isn't the one the data uses. `secrets.sh pull` — never force a new key. |
-| chat-api `MongoDB connect failed` after enabling TLS | `MONGO_TLS=true` but mongod still `disabled`, or the cert doesn't match the namespace (re-run `mongo-tls.sh renew` after changing `NAMESPACE`). Roll back with `MONGO_TLS=false`. |
-| `ImagePullBackOff` | Wrong `image:` path/tag, or `myregistrykey` missing/wrong. |
-| `thecrypt-mongo-0` stays `Pending` | No node carries `thecrypt.io/mongo=true`, or the PV/PVC didn't bind (`kubectl -n tor-hidden-ns get pvc`). |
-| MongoDB crashes with "Illegal instruction" | It landed on a CPU older than ARMv8.2 (Pi 4). Label a Pi 5 instead. |
-| MongoDB "Permission denied" on `/data/db` | The NFS export isn't writable by UID/GID 999. |
-| chat-api logs `MongoDB connect failed` | MongoDB isn't ready yet (it retries for several minutes before exiting), or `mongo-auth` was changed after first start (see step 3 notes). |
-| Admin login fails with the right password | TOTP code missing/expired or clock skew on your phone; 5 failures lock the account for 15 min. |
-| Onion doesn't resolve | Wait a couple of minutes after a restart; check `kubectl -n tor-hidden-ns logs deploy/thecrypt -c tor`. |
-
-## Death Row biopsies
-
-**Data at rest:** emails, phone numbers and message bodies are encrypted by
-chat-api before they reach MongoDB (AES-256-GCM, key in the `chat-data-key`
-Secret; emails are looked up through an HMAC blind index), so the NFS share,
-NAS snapshots and database dumps hold ciphertext. This does not protect
-against someone who controls the chat-api Pod or can read the cluster's
-Secrets. Passwords are hashed with Argon2id.
-
-**Data in transit inside the cluster:** chat-api ↔ MongoDB can use TLS with a
-private CA ([MongoDB TLS](#mongodb-tls)); the NetworkPolicy already limits who
-can connect.
-
-The Death Row grid on the home page and the `biopsy-N/` case files are
-generated, not hand-written:
-
-```
-python3 tools/generate_biopsies.py                       # 56 biopsies, #13 expired
-python3 tools/generate_biopsies.py --count 80 --expired 7 --seed 42 --base-date 2026-12-01
-```
-
-- Each biopsy gets an anonymous codename (`SUBJ-XXXX`), a generic sector and
-  region, random findings, and a deadline 7–180 days after `--base-date`
-  (default: today). Tiles and case files count down live (`js/countdown.js`).
-- The `--expired` biopsy's deadline is already past: its tile reads
-  **Time's up!** and its case file offers a **Download archive** button. The
-  zip (about 3 MB) is junk in a Windows-looking tree (`C$/Users/...`,
-  `Shares/Finance/...`): random bytes behind `.docx`/`.xlsx`/`.pdf` names and
-  lorem-ipsum text and CSV. A `_README_SIMULATED_DATA.txt` marker at its root
 Coming from a release **before encryption at rest**? Don't just bump the tag —
 follow [Upgrading to encryption at rest](#upgrading-to-encryption-at-rest).
 
@@ -472,11 +468,60 @@ helper scripts connect over TLS automatically whenever the Secret is mounted.
 mongod logs a "No SSL certificate provided by peer" warning per connection
 (clients need no certificate; that is expected).
 
-  says it is simulated.
-- Runs are seeded: the same arguments give the same pages and an identical
-  zip. Re-run it, then rebuild the website image, to change the set. Tiles are
-  written between the `BIOPSIES:BEGIN/END` markers in `index.html`; edit the
-  generator's templates rather than the generated pages.
+### Troubleshooting
+
+| Symptom | Cause / fix |
+|---------|-------------|
+| Pod stuck in `CreateContainerConfigError` / `ContainerCreating` | A Secret is missing — `kubectl -n tor-hidden-ns describe pod <pod>` names it (step 3; `chat-data-key`: `secrets.sh apply`; `mongo-tls`: `mongo-tls.sh apply`). |
+| chat-api exits: `DATA_KEY is not set` | No `chat-data-key` Secret. New install: `secrets.sh apply`. Pre-encryption install: `upgrade-encryption.sh`. |
+| chat-api exits: `unencrypted (pre-upgrade) rows found while STRICT_ENCRYPTION=true` | Upgraded without migrating. Set `STRICT_ENCRYPTION=false`, `deploy.sh`, run `migrate.js` (upgrade runbook step 5). |
+| `secrets.sh apply` says `REFUSING: DATA_KEY ... differs` | Your file's key isn't the one the data uses. `secrets.sh pull` — never force a new key. |
+| chat-api `MongoDB connect failed` after enabling TLS | `MONGO_TLS=true` but mongod still `disabled`, or the cert doesn't match the namespace (re-run `mongo-tls.sh renew` after changing `NAMESPACE`). Roll back with `MONGO_TLS=false`. |
+| `ImagePullBackOff` | Wrong `image:` path/tag, or `myregistrykey` missing/wrong. |
+| `thecrypt-mongo-0` stays `Pending` | No node carries `thecrypt.io/mongo=true`, or the PV/PVC didn't bind (`kubectl -n tor-hidden-ns get pvc`). |
+| MongoDB crashes with "Illegal instruction" | It landed on a CPU older than ARMv8.2 (Pi 4). Label a Pi 5 instead. |
+| MongoDB "Permission denied" on `/data/db` | The NFS export isn't writable by UID/GID 999. |
+| chat-api logs `MongoDB connect failed` | MongoDB isn't ready yet (it retries for several minutes before exiting), or `mongo-auth` was changed after first start (see step 3 notes). |
+| Admin login fails with the right password | TOTP code missing/expired or clock skew on your phone; 5 failures lock the account for 15 min. |
+| Onion doesn't resolve | Wait a couple of minutes after a restart; check `kubectl -n tor-hidden-ns logs deploy/thecrypt -c tor`. |
+
+## Death Row biopsies
+
+The Death Row grid on the home page and the `biopsy-N/` case files are
+generated, not hand-written:
+
+```
+python3 tools/generate_biopsies.py                       # 9 biopsies from tools/subjects.json
+python3 tools/generate_biopsies.py --count 20 --expired 4 --seed 42 --base-date 2026-12-01
+```
+
+- **Named companies** come from `tools/subjects.json`. Each one takes over a
+  `slot` with a full profile:
+  - company name, website, headquarters, industry, size, revenue and data volume;
+  - "Data Obtained" categories, a proof file listing, findings and a note;
+  - a deadline `deadline_days` after `--base-date`.
+
+  All 9 slots are fictitious companies. Their domains were checked as
+  unregistered, except `veldmark-tech.com`, which belongs to the exercise.
+  Slot 1, **Veldmark Insurance Technology (Pty) Ltd**, is on a 4-week timer.
+- **Slots without a named company** (for example with `--count` above 9) get an anonymous codename (`SUBJ-XXXX`), a generic
+  sector and region, random findings, and a deadline 7–180 days out.
+- **Expired biopsies** are already past their deadline. For a named company,
+  set `deadline_days` to 0 or below (currently #6, Altenbrück); for a codename
+  slot, use `--expired N`. Its tile reads
+  **Time's up!** and its case file offers a **Download archive** button. The
+  zip (about 3 MB) is junk in a Windows-looking tree (`C$/Users/...`,
+  `Shares/Finance/...`): random bytes behind `.docx`/`.xlsx`/`.pdf` names,
+  plus lorem-ipsum text and CSV files. A `_README_SIMULATED_DATA.txt` marker
+  at its root says it is simulated. Each expired biopsy gets its own zip.
+- **Deadlines** count from the current hour in UTC, or from `--base-date`. Every
+  timer counts down live (`js/countdown.js`). They don't move by themselves:
+  re-run the generator to reset them, then rebuild the website image.
+- **Runs are seeded.** The same arguments and base date give the same pages
+  and a byte-identical zip.
+- **Where things go:** tiles are written between the `BIOPSIES:BEGIN/END`
+  markers in `index.html`. Edit the generator or `subjects.json` rather than
+  the generated pages.
 
 ## Operator chat
 
@@ -519,6 +564,8 @@ crews, for emulation.
   than per IP: 120/min per user, 300/min shared by signed-out callers, 1200/min
   for the whole API. Tune with `RATE_LIMIT_USER` / `RATE_LIMIT_ANON` /
   `RATE_LIMIT_GLOBAL`.
+- Emails, phone numbers and message bodies are encrypted at rest (AES-256-GCM,
+  `chat-data-key` Secret); see [Security of the deployment](#security-of-the-deployment).
 - Secrets are mounted as read-only files under `/run/secrets/`, never passed
   as environment variables. chat-api gets only the MongoDB app user (not root),
   and nginx and Tor get no credentials at all.
@@ -546,7 +593,5 @@ GitHub Actions run on every push / PR:
 * ~~Separate Nginx and Tor proxy as two different containers~~ ✅ (sidecar)
 * Continue to update web content to look better
 * ~~Add javascript, python, or php to make the website more dynamic~~ ✅ (operator chat: Node + MongoDB)
-* Vanity onion address (e.g. with `mkp224o`)
+* ~~Vanity onion address~~ ✅ (`mkp224o`, see "Optional: a vanity address")
 * Push new messages (SSE/WebSocket) instead of polling
-- Emails, phone numbers and message bodies are encrypted at rest (AES-256-GCM,
-  `chat-data-key` Secret); see [Security of the deployment](#security-of-the-deployment).

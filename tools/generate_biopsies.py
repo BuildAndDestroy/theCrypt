@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate The Crypt's biopsy pages, the Death Row tiles, and the junk leak archive.
 
-    python3 tools/generate_biopsies.py                 # 56 biopsies, deadlines from today
-    python3 tools/generate_biopsies.py --count 80 --expired 13 --seed 7
+    python3 tools/generate_biopsies.py                 # 9 biopsies, deadlines from today
+    python3 tools/generate_biopsies.py --count 20 --expired 4 --seed 7
     python3 tools/generate_biopsies.py --base-date 2026-11-10
 
 Writes (overwriting):
@@ -12,13 +12,15 @@ Writes (overwriting):
 
 Everything is seeded: the same arguments always produce the same pages and the
 same archive (byte for byte). Subjects are anonymous codenames + a generic
-sector/region, never real organisation names. The archive is random junk in a
+sector/region, except the named (fictitious) companies in tools/subjects.json,
+which take over their `slot` with a full profile. The archive is random junk in a
 Windows-looking folder tree, with a marker file saying it is simulated.
 Stdlib only.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import datetime as dt
 import hashlib
 import html
@@ -104,8 +106,26 @@ def make_subjects(count: int, expired: int, base: dt.datetime, rng: random.Rando
             "note": rng.choice(NOTES),
             "deadline": deadline.replace(microsecond=0),
             "expired": n == expired,
+            "named": None,
         })
     return subjects
+
+
+def apply_named(subjects: list[dict], named: list[dict], base: dt.datetime) -> None:
+    for c in named:
+        s = subjects[c["slot"] - 1]
+        s.update({
+            "named": c,
+            "sector": c["sector"],
+            "region": c["region"],
+            "employees": c["employees"],
+            "revenue": c["revenue"],
+            "data_gb": c["data_gb"],
+            "findings": c["findings"],
+            "note": c["note"],
+            "deadline": base + dt.timedelta(days=c["deadline_days"]),
+            "expired": c["deadline_days"] <= 0,   # zero/negative = already published
+        })
 
 # ------------------------------------------------------------------ junk archive
 
@@ -209,7 +229,7 @@ PAGE = """<!DOCTYPE html>
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biopsy {n} Review</title>
+    <title>{page_title}</title>
     <link href="/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/font/bootstrap-icons.css" rel="stylesheet">
     <link href="/css/custom-styles.min.css" rel="stylesheet">
@@ -234,15 +254,15 @@ PAGE = """<!DOCTYPE html>
 
     <section class="py-5"><div class="container text-center"><span class="section-tag">// Case File {code}</span></div>
         <div class="container">
-            <h1 class="text-center mb-4">Detailed Review: Biopsy {n}</h1>
+            <h1 class="text-center mb-4">{heading}</h1>
             <div class="row">
                 <div class="col-md-8 mx-auto review-body">
-                    <p><strong>Subject:</strong> {code} &mdash; {sector}, {region}.</p>
-                    <p><strong>Profile:</strong> ~{employees} employees, annual revenue {revenue}. {data_gb} GB of data recovered.</p>
+{profile}
                     <h3>Key Findings</h3>
                     <ul>
 {findings}
                     </ul>
+{extra}
                     <h3>Additional Notes</h3>
                     <p>{note}</p>
                 </div>
@@ -299,12 +319,12 @@ DOWNLOAD = """            <div class="leak-download mt-4">
                 <div class="small text-secondary mt-3 font-monospace">{file} &middot; {size} &middot; {files} files<br>SHA-256 {sha}</div>
             </div>"""
 
-TILE = """                <div class="col-sm-6 col-md-4 col-xl-3">
+TILE = """                <div class="col-sm-6 col-lg-4">
                     <div class="card biopsy-tile mb-4 shadow-sm{tile_class}">
-                        <div class="crypt-emblem"><i class="bi {icon}"></i></div>
+                        <div class="crypt-emblem">{emblem}</div>
                         <div class="card-body">
-                            <h5 class="card-title">Biopsy {n} <span class="status-tag">{status}</span></h5>
-                            <p class="card-text small mb-2">{code} &middot; {sector} &middot; {region}</p>
+                            <h5 class="card-title">{title} <span class="status-tag">{status}</span></h5>
+                            <p class="card-text small mb-2">{subtitle}</p>
                             <div class="tile-countdown{countdown_class}" data-countdown="{deadline}">{countdown_initial}</div>
                             <a href="biopsy-{n}/" class="btn btn-primary btn-sm mt-3 stretched-link">{button}</a>
                         </div>
@@ -312,7 +332,40 @@ TILE = """                <div class="col-sm-6 col-md-4 col-xl-3">
                 </div>"""
 
 
-def render(subjects: list[dict], archive: dict | None) -> None:
+def profile_html(s: dict) -> tuple[str, str]:
+    """(profile block, extra sections) for a case file."""
+    c = s["named"]
+    i = " " * 20
+    if not c:
+        return (f"{i}<p><strong>Subject:</strong> {esc(s['code'])} &mdash; {esc(s['sector'])}, {esc(s['region'])}.</p>\n"
+                f"{i}<p><strong>Profile:</strong> ~{s['employees']} employees, annual revenue {esc(s['revenue'])}. "
+                f"{s['data_gb']} GB of data recovered.</p>"), ""
+    rows = [
+        ("Company", esc(c["name"])),
+        ("Website", f'<span class="font-monospace">{esc(c["domain"])}</span>'),
+        ("Headquarters", "<br>".join(esc(line) for line in c["address"])),
+        ("Industry", esc(c["sector"])),
+        ("Employees", f"~{c['employees']}"),
+        ("Revenue", esc(c["revenue"])),
+        ("Data volume", f"{c['data_gb']} GB &middot; {esc(c['file_count'])} files"),
+    ]
+    table = "\n".join(f"{i}        <tr><th scope=\"row\">{k}</th><td>{v}</td></tr>" for k, v in rows)
+    profile = (f"{i}<div class=\"subject-head\">\n"
+               f"{i}    <div class=\"subject-mono\" aria-hidden=\"true\">{esc(c['monogram'])}</div>\n"
+               f"{i}    <div><div class=\"subject-name\">{esc(c['name'])}</div>"
+               f"<div class=\"subject-domain font-monospace\">{esc(c['domain'])}</div></div>\n"
+               f"{i}</div>\n"
+               f"{i}<p>{esc(c['summary'])}</p>\n"
+               f"{i}<table class=\"table table-dark table-sm subject-table\">\n{i}    <tbody>\n{table}\n{i}    </tbody>\n{i}</table>")
+    cats = "\n".join(f"{i}    <li>{esc(x)}</li>" for x in c["categories"])
+    samples = "\n".join(esc(x) for x in c["samples"])
+    extra = (f"{i}<h3>Data Obtained</h3>\n{i}<ul>\n{cats}\n{i}</ul>\n"
+             f"{i}<h3>Proof &mdash; File Listing (excerpt)</h3>\n"
+             f"{i}<pre class=\"proof-listing\">{samples}</pre>")
+    return profile, extra
+
+
+def render(subjects: list[dict]) -> None:
     # Remove stale biopsy folders beyond the new count.
     for old in WEB.glob("biopsy-*"):
         m = re.fullmatch(r"biopsy-(\d+)", old.name)
@@ -324,12 +377,17 @@ def render(subjects: list[dict], archive: dict | None) -> None:
         iso = s["deadline"].strftime("%Y-%m-%dT%H:%M:%SZ")
         exp = s["expired"]
         download = ""
+        archive = s.get("archive")
         if exp and archive:
             download = DOWNLOAD.format(file=esc(archive["file"]), size=human_size(archive["size"]),
                                        files=archive["files"], sha=archive["sha"])
+        c = s["named"]
+        profile, extra = profile_html(s)
         page = PAGE.format(
-            n=s["n"], code=esc(s["code"]), sector=esc(s["sector"]), region=esc(s["region"]),
-            employees=s["employees"], revenue=esc(s["revenue"]), data_gb=s["data_gb"],
+            n=s["n"], code=esc(s["code"]),
+            page_title=esc(f"{c['short_name']} — Case File" if c else f"Biopsy {s['n']} Review"),
+            heading=esc(c["name"]) if c else f"Detailed Review: Biopsy {s['n']}",
+            profile=profile, extra=extra,
             findings="\n".join(f"                        <li>{esc(f)}</li>" for f in s["findings"]),
             note=esc(s["note"]),
             timer_heading="Time's up" if exp else "Countdown to Publication",
@@ -345,10 +403,14 @@ def render(subjects: list[dict], archive: dict | None) -> None:
         if not exp and (d / "files").exists():
             shutil.rmtree(d / "files")
 
+        icon = "bi-file-earmark-zip" if exp else "bi-file-earmark-medical"
         tiles.append(TILE.format(
-            n=s["n"], code=esc(s["code"]), sector=esc(s["sector"]), region=esc(s["region"]),
-            tile_class=" expired" if exp else "",
-            icon="bi-file-earmark-zip" if exp else "bi-file-earmark-medical",
+            n=s["n"],
+            title=esc(c["short_name"]) if c else f"Biopsy {s['n']}",
+            subtitle=(f"{esc(c['domain'])} &middot; {esc(c['sector'])} &middot; {esc(c['region'])}" if c
+                      else f"{esc(s['code'])} &middot; {esc(s['sector'])} &middot; {esc(s['region'])}"),
+            emblem=(f'<span class="subject-mono">{esc(c["monogram"])}</span>' if c else f'<i class="bi {icon}"></i>'),
+            tile_class=(" expired" if exp else "") + (" named" if c else ""),
             status="Published" if exp else "Pending",
             countdown_class=" expired" if exp else "",
             deadline=iso,
@@ -367,37 +429,55 @@ def render(subjects: list[dict], archive: dict | None) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--count", type=int, default=56)
-    ap.add_argument("--expired", type=int, default=13, help="which biopsy has run out of time (0 = none)")
+    ap.add_argument("--count", type=int, default=9)
+    ap.add_argument("--expired", type=int, default=0,
+                    help="make this codename slot run out of time (0 = none). Named companies "
+                         "expire via deadline_days <= 0 in subjects.json")
+    ap.add_argument("--subjects", default=str(ROOT / "tools" / "subjects.json"),
+                    help="named fictitious companies (JSON); '' for none")
     ap.add_argument("--seed", type=int, default=1337)
-    ap.add_argument("--base-date", help="YYYY-MM-DD the random deadlines count from (default: today, UTC)")
+    ap.add_argument("--base-date", help="YYYY-MM-DD[THH:MM] (UTC) the deadlines count from (default: the current hour)")
     args = ap.parse_args()
     if not 1 <= args.count <= 500:
         raise SystemExit("--count must be 1..500")
     if not 0 <= args.expired <= args.count:
         raise SystemExit("--expired must be 0..count")
 
-    base = (dt.datetime.strptime(args.base_date, "%Y-%m-%d") if args.base_date
-            else dt.datetime.now(dt.timezone.utc).replace(tzinfo=None, hour=0, minute=0, second=0, microsecond=0))
+    # Deadlines count from the current hour (UTC) unless --base-date is given.
+    base = (dt.datetime.fromisoformat(args.base_date).replace(tzinfo=None) if args.base_date
+            else dt.datetime.now(dt.timezone.utc).replace(tzinfo=None, minute=0, second=0, microsecond=0))
     rng = random.Random(args.seed)
     subjects = make_subjects(args.count, args.expired, base, rng)
+    named = json.loads(Path(args.subjects).read_text())["subjects"] if args.subjects else []
+    for c in named:
+        if not 1 <= c["slot"] <= args.count:
+            raise SystemExit(f"{c['name']}: slot {c['slot']} is outside 1..{args.count}")
+    apply_named(subjects, named, base)
 
-    archive = None
-    if args.expired:
-        s = subjects[args.expired - 1]
-        file = f"{s['code'].lower()}-dump.zip"
+    # Every expired subject gets its own junk archive (seeded per slot).
+    for s in subjects:
         target = WEB / f"biopsy-{s['n']}" / "files"
         if target.exists():
             shutil.rmtree(target)
-        size, sha, files = build_archive(target / file, s["code"], random.Random(args.seed + 1), s["deadline"])
-        archive = {"file": file, "size": size, "sha": sha, "files": files}
+        if not s["expired"]:
+            continue
+        c = s["named"]
+        stem = c["domain"].split(".")[0] if c else s["code"].lower()
+        file = f"{stem}-dump.zip"
+        label = c["name"] if c else s["code"]
+        size, sha, files = build_archive(target / file, label, random.Random(args.seed + s["n"]), s["deadline"])
+        s["archive"] = {"file": file, "size": size, "sha": sha, "files": files}
 
-    render(subjects, archive)
-    print(f"Generated {args.count} biopsies (deadlines from {base:%Y-%m-%d}).")
-    if archive:
-        print(f"Biopsy {args.expired}: Time's up -> files/{archive['file']} "
-              f"({human_size(archive['size'])}, {archive['files']} files)")
-
+    render(subjects)
+    print(f"Generated {args.count} biopsies (deadlines from {base:%Y-%m-%d %H:00} UTC).")
+    for s in subjects:
+        who = s["named"]["name"] if s["named"] else s["code"]
+        state = "TIME'S UP" if s["expired"] else f"deadline {s['deadline']:%Y-%m-%d %H:%M} UTC"
+        extra = ""
+        if s.get("archive"):
+            a = s["archive"]
+            extra = f" -> files/{a['file']} ({human_size(a['size'])}, {a['files']} files)"
+        print(f"  {s['n']:>2}. {who}: {state}{extra}")
 
 if __name__ == "__main__":
     main()
