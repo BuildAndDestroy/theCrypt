@@ -501,9 +501,8 @@ python3 tools/generate_biopsies.py --count 20 --expired 4 --seed 42 --base-date 
   - "Data Obtained" categories, a proof file listing, findings and a note;
   - a deadline `deadline_days` after `--base-date`.
 
-  All 9 slots are fictitious companies. Their domains were checked as
-  unregistered, except `veldmark-tech.com`, which belongs to the exercise.
-  Slot 1, **Veldmark Insurance Technology (Pty) Ltd**, is on a 4-week timer.
+  All 9 slots are fictitious companies and their domains were checked as
+  unregistered. Slot 1, **Tenmarch Water Utilities LLC**, is on a 4-week timer.
 - **Slots without a named company** (for example with `--count` above 9) get an anonymous codename (`SUBJ-XXXX`), a generic
   sector and region, random findings, and a deadline 7–180 days out.
 - **Expired biopsies** are already past their deadline. For a named company,

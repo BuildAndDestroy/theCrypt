@@ -3,50 +3,50 @@
   "subjects": [
     {
       "slot": 1,
-      "name": "Veldmark Insurance Technology (Pty) Ltd",
-      "short_name": "Veldmark Insurance Technology",
-      "monogram": "VM",
-      "domain": "veldmark-tech.com",
+      "name": "Tenmarch Water Utilities LLC",
+      "short_name": "Tenmarch Water Utilities",
+      "monogram": "TW",
+      "domain": "tenmarch-water.com",
       "address": [
-        "14 Katherine Street, Floor 9",
-        "Sandton, Johannesburg",
-        "Gauteng 2196, South Africa"
+        "2400 Cedar Hollow Parkway, Suite 500",
+        "Columbus, Ohio",
+        "OH 43240, United States"
       ],
-      "sector": "Insurance technology",
-      "region": "South Africa",
-      "employees": 340,
-      "revenue": "R 486M (FY2025)",
+      "sector": "Water & wastewater utilities",
+      "region": "North America",
+      "employees": 410,
+      "revenue": "$88M (FY2025)",
       "deadline_days": 28,
-      "data_gb": 612,
-      "file_count": "1.4M",
-      "summary": "Insurtech platform provider serving short-term insurers and brokers across Southern Africa: policy administration, claims processing and underwriting analytics delivered as a managed cloud service.",
+      "data_gb": 540,
+      "file_count": "1.1M",
+      "summary": "Regional water and wastewater utility serving several municipalities, operating treatment plants, pumping stations and a SCADA-controlled distribution network alongside customer billing and metering services.",
       "categories": [
-        "Policyholder records (ID numbers, contact details, banking details)",
-        "Claims files, assessor reports and supporting documents",
-        "Underwriting and pricing models",
-        "Platform source code and CI/CD secrets",
-        "Broker and insurer client contracts",
+        "Customer billing records (names, addresses, bank/ACH details)",
+        "SCADA and plant control configuration exports",
+        "Network diagrams for treatment and distribution sites",
+        "Operational technology credentials and VPN configs",
+        "Municipal service contracts and compliance filings",
         "HR, payroll and employee records",
         "Finance: management accounts, audit working papers, tax"
       ],
       "findings": [
         "Initial access through a reused VPN credential without MFA.",
         "Domain admin obtained from a plaintext password in an IT share.",
+        "Flat network with no segmentation between the business LAN and the OT/SCADA VLAN.",
         "Production database backups stored on a file server reachable from the office network.",
-        "Client data from multiple insurers held in shared storage without segregation.",
-        "Regulators and data subjects will be notified under POPIA at publication."
+        "Customers and the state utility regulator will be notified at publication."
       ],
       "samples": [
-        "\\\\vmk-fs01\\Finance\\FY2025\\Management Accounts\\MA_2025-09_FINAL.xlsx",
-        "\\\\vmk-fs01\\Finance\\Audit\\2025\\Working Papers\\WP-Revenue.xlsx",
-        "\\\\vmk-fs01\\HR\\Payroll\\2025\\Payroll_Run_2025-10.csv",
-        "\\\\vmk-fs01\\Legal\\Clients\\Master Services Agreement - Insurer A.pdf",
-        "\\\\vmk-fs02\\Claims\\2025\\Q3\\CLM-0048213\\assessor_report.pdf",
-        "\\\\vmk-fs02\\Underwriting\\Pricing\\motor_rating_model_v14.xlsx",
-        "\\\\vmk-sql03\\Backups\\PolicyAdmin_PROD_2025-10-31.bak",
-        "\\\\vmk-git01\\repos\\policy-platform\\deploy\\prod.env"
+        "\\\\tw-fs01\\Finance\\FY2025\\Management Accounts\\MA_2025-09_FINAL.xlsx",
+        "\\\\tw-fs01\\Finance\\Audit\\2025\\Working Papers\\WP-Revenue.xlsx",
+        "\\\\tw-fs01\\HR\\Payroll\\2025\\Payroll_Run_2025-10.csv",
+        "\\\\tw-fs01\\Legal\\Municipal\\Service Agreement - District 4.pdf",
+        "\\\\tw-fs02\\Operations\\SCADA\\plant3_config_export_2025-10.zip",
+        "\\\\tw-fs02\\Operations\\Network\\distribution_network_diagram_v9.vsdx",
+        "\\\\tw-sql03\\Backups\\Billing_PROD_2025-10-31.bak",
+        "\\\\tw-git01\\repos\\meter-portal\\deploy\\prod.env"
       ],
-      "note": "Veldmark was contacted and has not responded. Insurer and broker clients named in the data will be informed before publication."
+      "note": "Tenmarch was contacted and has not responded. Municipal clients and customers named in the data will be informed before publication."
     },
     {
       "slot": 2,
