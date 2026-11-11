@@ -10,6 +10,11 @@
 # so backend edits restart it automatically. Only vendor assets (Bootstrap +
 # icons) and npm dependencies are baked in; rebuild if you change those.
 #
+# A dev database created before field encryption holds plaintext and the API
+# (STRICT_ENCRYPTION "true") refuses it: `docker compose down -v` to start
+# fresh, or set STRICT_ENCRYPTION "false" and run
+# `docker compose exec api node src/migrate.js` once.
+#
 # Dev-only credentials below. Chat:  http://localhost:8080/chat/
 # Operator console:                  http://localhost:8080/admin/
 #   (admin@crypt.local / dev-admin-password-change-me)
@@ -37,6 +42,10 @@ services:
       LISTEN_HOST: 0.0.0.0          # compose network only; not published to the host
       ADMIN_EMAIL: admin@crypt.local
       ADMIN_PASSWORD: dev-admin-password-change-me
+      # Field-encryption key — DEV ONLY. It is public (in git), so it protects
+      # nothing; never reuse it. Deployments generate their own (secrets.sh).
+      DATA_KEY: "hYdSZ0dy89Rrw+JWmB8oAVPQ0cWbkSjg34pDQliBE+M="
+      STRICT_ENCRYPTION: "true"
     volumes:
       - ./chat-api/src:/app/src:ro
     depends_on:

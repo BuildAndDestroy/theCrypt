@@ -9,35 +9,23 @@ import { authRouter } from "./routes/auth.js";
 import { chatRouter } from "./routes/chat.js";
 import { adminRouter } from "./routes/admin.js";
 import { ensureAdmin } from "./bootstrap.js";
-import { secret } from "./lib/secrets.js";
+import { connect } from "./lib/db.js";
+import { loadKeys, strict } from "./lib/fieldcrypto.js";
 import { globalLimiter, userLimiter } from "./middleware/limits.js";
+import { Message, User } from "./models/index.js";
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.LISTEN_HOST || "127.0.0.1";
-// Either a full MONGODB_URI, or the parts. In Kubernetes the credentials are
-// files from the mongo-auth Secret (MONGO_USERNAME_FILE / MONGO_PASSWORD_FILE).
-// They are URL-encoded here, so any characters work.
-function mongoUri() {
-  const uri = secret("MONGODB_URI");
-  if (uri) return uri;
-  const { MONGO_HOST, MONGO_DB = "thecrypt" } = process.env;
-  const MONGO_USERNAME = secret("MONGO_USERNAME");
-  const MONGO_PASSWORD = secret("MONGO_PASSWORD");
-  if (!MONGO_HOST || !MONGO_USERNAME || !MONGO_PASSWORD) return null;
-  const auth = `${encodeURIComponent(MONGO_USERNAME)}:${encodeURIComponent(MONGO_PASSWORD)}`;
-  return `mongodb://${auth}@${MONGO_HOST}/${encodeURIComponent(MONGO_DB)}?authSource=${encodeURIComponent(MONGO_DB)}`;
-}
-const MONGODB_URI = mongoUri();
 
-if (!MONGODB_URI) {
-  console.error("Set MONGODB_URI, or MONGO_HOST + MONGO_USERNAME + MONGO_PASSWORD (+ MONGO_DB)");
+// Field-encryption keys: a missing or malformed DATA_KEY stops the process
+// before it touches the database.
+try {
+  const { kid, previousKid } = loadKeys();
+  console.log(`Field encryption: key ${kid}${previousKid ? ` (+ previous ${previousKid})` : ""}, strict=${strict()}`);
+} catch (err) {
+  console.error("Fatal:", err.message);
   process.exit(1);
 }
-
-// Reject {"$ne": ...}-style operator objects anywhere in a query filter.
-// Operators the server builds itself are wrapped in mongoose.trusted().
-mongoose.set("sanitizeFilter", true);
-mongoose.set("strictQuery", true);
 
 const app = express();
 app.disable("x-powered-by");
@@ -75,18 +63,30 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: "Internal error" });
 });
 
-async function main() {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 10_000 });
-      break;
-    } catch (err) {
-      console.error(`MongoDB connect failed (attempt ${attempt}): ${err.message}`);
-      if (attempt >= 30) process.exit(1);
-      await new Promise((r) => setTimeout(r, 5_000));
-    }
+// Rows not yet migrated. In strict mode they can't be read (and the legacy
+// admin row couldn't be found, so a duplicate would be created): refuse to
+// start rather than run half-broken.
+async function checkPlaintext() {
+  const plain = { $not: /^v1:/ };
+  const [u, m] = await Promise.all([
+    User.exists({ email: mongoose.trusted(plain) }),
+    Message.exists({ body: mongoose.trusted(plain) }),
+  ]);
+  if (!u && !m) return;
+  if (strict()) {
+    throw new Error(
+      "unencrypted (pre-upgrade) rows found while STRICT_ENCRYPTION=true. " +
+      "Deploy with STRICT_ENCRYPTION=false, run `node src/migrate.js`, then re-enable strict mode " +
+      "(kubernetes/scripts/upgrade-encryption.sh does this).",
+    );
   }
+  console.warn("Unencrypted (pre-upgrade) rows found. Run: node src/migrate.js, then set STRICT_ENCRYPTION=true.");
+}
+
+async function main() {
+  await connect();
   await mongoose.syncIndexes();
+  await checkPlaintext();
   await ensureAdmin();
   app.listen(PORT, HOST, () => console.log(`chat-api listening on ${HOST}:${PORT}`));
 }

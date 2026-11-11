@@ -1,26 +1,64 @@
 // Password hashing, access keys, session tokens and TOTP — all on Node's
-// built-in crypto, so the image has no native modules to compile for ARM.
+// built-in crypto (Argon2id needs Node >= 24.7), so the image has no native
+// modules to compile for ARM.
 import crypto from "node:crypto";
 import { promisify } from "node:util";
 
 const scrypt = promisify(crypto.scrypt);
+const argon2 = promisify(crypto.argon2);
 
 // ---------------------------------------------------------------- passwords
-// scrypt N=2^15, r=8, p=1 (~32 MiB, ~100 ms on a Pi). Format:
-//   scrypt$<N>$<r>$<p>$<salt b64>$<hash b64>
-const SCRYPT = { N: 1 << 15, r: 8, p: 1, keylen: 64 };
+// Argon2id, m=64 MiB, t=3, p=1 (OWASP-compliant; ~0.3-0.5 s on a Pi 4).
+// limitHashing caps concurrency at 2, so hashing peaks at ~128 MiB.
+// Stored in the standard PHC string format:
+//   $argon2id$v=19$m=65536,t=3,p=1$<salt b64>$<hash b64>   (unpadded base64)
+//
+// Legacy hashes (`scrypt$N$r$p$salt$hash`) still verify; the login route
+// re-hashes them with Argon2id on the next successful sign-in.
+export const ARGON2 = { memory: 64 * 1024, passes: 3, parallelism: 1, tagLength: 32 };
 const SCRYPT_MAXMEM = 64 * 1024 * 1024;
+// Refuse to verify hashes whose parameters would let a tampered record
+// exhaust memory or CPU (m in KiB).
+const ARGON2_LIMITS = { maxMemory: 256 * 1024, maxPasses: 10, maxParallelism: 4 };
+
+const b64 = (buf) => buf.toString("base64").replace(/=+$/, "");
 
 export async function hashPassword(password) {
   const salt = crypto.randomBytes(16);
-  const hash = await scrypt(password, salt, SCRYPT.keylen, {
-    N: SCRYPT.N, r: SCRYPT.r, p: SCRYPT.p, maxmem: SCRYPT_MAXMEM,
-  });
-  return ["scrypt", SCRYPT.N, SCRYPT.r, SCRYPT.p, salt.toString("base64"), hash.toString("base64")].join("$");
+  const hash = await argon2("argon2id", { message: password, nonce: salt, ...ARGON2 });
+  const { memory: m, passes: t, parallelism: p } = ARGON2;
+  return `$argon2id$v=19$m=${m},t=${t},p=${p}$${b64(salt)}$${b64(hash)}`;
+}
+
+function parseArgon2(stored) {
+  // ["", "argon2id", "v=19", "m=..,t=..,p=..", salt, hash]
+  const parts = stored.split("$");
+  if (parts.length !== 6 || parts[0] !== "" || parts[1] !== "argon2id" || parts[2] !== "v=19") return null;
+  const params = Object.fromEntries(parts[3].split(",").map((kv) => kv.split("=")));
+  const memory = Number(params.m), passes = Number(params.t), parallelism = Number(params.p);
+  if (![memory, passes, parallelism].every(Number.isSafeInteger)) return null;
+  if (memory > ARGON2_LIMITS.maxMemory || passes > ARGON2_LIMITS.maxPasses || parallelism > ARGON2_LIMITS.maxParallelism) return null;
+  const salt = Buffer.from(parts[4], "base64");
+  const hash = Buffer.from(parts[5], "base64");
+  if (salt.length < 8 || hash.length < 16) return null;
+  return { memory, passes, parallelism, salt, hash };
 }
 
 export async function verifyPassword(password, stored) {
-  const parts = typeof stored === "string" ? stored.split("$") : [];
+  if (typeof stored !== "string") return false;
+
+  if (stored.startsWith("$argon2id$")) {
+    const h = parseArgon2(stored);
+    if (!h) return false;
+    const actual = await argon2("argon2id", {
+      message: password, nonce: h.salt, memory: h.memory, passes: h.passes,
+      parallelism: h.parallelism, tagLength: h.hash.length,
+    });
+    return crypto.timingSafeEqual(actual, h.hash);
+  }
+
+  // Legacy scrypt.
+  const parts = stored.split("$");
   if (parts.length !== 6 || parts[0] !== "scrypt") return false;
   const [, N, r, p, saltB64, hashB64] = parts;
   const expected = Buffer.from(hashB64, "base64");
@@ -28,6 +66,21 @@ export async function verifyPassword(password, stored) {
     N: Number(N), r: Number(r), p: Number(p), maxmem: SCRYPT_MAXMEM,
   });
   return crypto.timingSafeEqual(actual, expected);
+}
+
+/** True when a (verified) hash is legacy scrypt or weaker than today's Argon2id settings. */
+export function needsRehash(stored) {
+  const h = typeof stored === "string" && stored.startsWith("$argon2id$") ? parseArgon2(stored) : null;
+  if (!h) return true;
+  return h.memory < ARGON2.memory || h.passes < ARGON2.passes || h.hash.length < ARGON2.tagLength;
+}
+
+/** "argon2id" | "scrypt" | "unknown" — for the migration report. */
+export function hashKind(stored) {
+  if (typeof stored !== "string") return "unknown";
+  if (stored.startsWith("$argon2id$")) return "argon2id";
+  if (stored.startsWith("scrypt$")) return "scrypt";
+  return "unknown";
 }
 
 // A real hash of a random password: verifying against it costs the same as a

@@ -21,6 +21,16 @@
 #         --from-literal=totp_secret="$(head -c 20 /dev/urandom | base32)"
 #     totp_secret is optional but strongly recommended: the login page is on
 #     the onion, reachable by anyone. Add it to your authenticator app.
+#   * chat-data-key — the field-encryption master key (AES-256-GCM for email,
+#     phone and message bodies; HMAC blind index for email):
+#       kubectl -n tor-hidden-ns create secret generic chat-data-key \
+#         --from-literal=data_key="$(openssl rand -base64 32)"
+#     LOSE IT AND THE ENCRYPTED DATA IS GONE. Back it up apart from DB backups.
+#     Optional data_key_previous is the old key during a rotation.
+#   * mongo-tls — only ca.crt, only when MONGO_TLS=true (lines between
+#     "# TLS-BEGIN" / "# TLS-END" are dropped by render.sh otherwise).
+#
+# STRICT_ENCRYPTION and MONGO_TLS below are set from config.env by render.sh.
 #
 # The onion identity (private key) lives ONLY in a Secret, never in an image
 # or in git. Create it from your existing tor/hidden_service directory:
@@ -176,6 +186,21 @@ spec:
           value: /run/secrets/admin/password
         - name: ADMIN_TOTP_SECRET_FILE
           value: /run/secrets/admin/totp_secret   # optional key
+        # Field encryption. Without the key the API refuses to start.
+        - name: DATA_KEY_FILE
+          value: /run/secrets/data/data_key
+        - name: DATA_KEY_PREVIOUS_FILE
+          value: /run/secrets/data/data_key_previous   # optional (rotation)
+        # "false" only while upgrading a pre-encryption database (legacy
+        # plaintext rows accepted); "true" refuses them.
+        - name: STRICT_ENCRYPTION
+          value: "true"               # render.sh: STRICT_ENCRYPTION
+        # TLS to MongoDB, verified against the mongo-tls CA (needs mongod's
+        # MONGO_TLS_MODE != disabled).
+        - name: MONGO_TLS
+          value: "false"              # render.sh: MONGO_TLS
+        - name: MONGO_TLS_CA_FILE
+          value: /run/secrets/mongo-tls/ca.crt
         volumeMounts:
         - name: mongo-app-credentials
           mountPath: /run/secrets/mongo
@@ -183,6 +208,14 @@ spec:
         - name: chat-admin
           mountPath: /run/secrets/admin
           readOnly: true
+        - name: chat-data-key
+          mountPath: /run/secrets/data
+          readOnly: true
+        # TLS-BEGIN
+        - name: mongo-tls
+          mountPath: /run/secrets/mongo-tls
+          readOnly: true
+        # TLS-END
         # Bound to loopback, so probe from inside the container.
         readinessProbe:
           exec:
@@ -205,9 +238,10 @@ spec:
           capabilities:
             drop: ["ALL"]
         resources:
-          # Password hashing (scrypt) uses ~32 MiB each, max 2 at a time.
-          requests: { cpu: "25m", memory: "64Mi" }
-          limits:   { cpu: "500m", memory: "256Mi" }
+          # Password hashing (Argon2id) uses 64 MiB each, max 2 at a time;
+          # the limit leaves headroom for that plus `node src/migrate.js`.
+          requests: { cpu: "25m", memory: "96Mi" }
+          limits:   { cpu: "500m", memory: "320Mi" }
       - name: tor
         image: registry.yourregistry.com/thecrypt-tor:1.0.0
         imagePullPolicy: Always
@@ -267,6 +301,22 @@ spec:
         secret:
           secretName: chat-admin
           defaultMode: 0440
+      # Whole Secret: the optional data_key_previous appears only when set.
+      - name: chat-data-key
+        secret:
+          secretName: chat-data-key
+          defaultMode: 0440
+      # TLS-BEGIN
+      # The CA only: chat-api never sees mongod's private key. optional, so a
+      # hand-applied copy (no render.sh) still starts without the Secret.
+      - name: mongo-tls
+        secret:
+          secretName: mongo-tls
+          defaultMode: 0440
+          optional: true
+          items:
+          - { key: ca.crt, path: ca.crt }
+      # TLS-END
 ---
 # Deny all inbound to the Pod (nothing should reach it directly — Tor connects
 # outbound to the network and serves over Pod loopback). Allow all egress so

@@ -1,7 +1,8 @@
 import { Router } from "express";
 import mongoose from "mongoose";
-import { AccessKey, User } from "../models/index.js";
-import { burnPasswordCheck, hashAccessKey, hashPassword, verifyPassword, verifyTotp } from "../lib/crypto.js";
+import { AccessKey, User, userByEmail } from "../models/index.js";
+import { burnPasswordCheck, hashAccessKey, hashPassword, needsRehash, verifyPassword, verifyTotp } from "../lib/crypto.js";
+import { decryptUser, encryptUserFields } from "../lib/fieldcrypto.js";
 import { ROLES, permissionsFor } from "../lib/rbac.js";
 import * as v from "../lib/validate.js";
 import { endSession, requireAuth, startSession } from "../middleware/auth.js";
@@ -14,10 +15,11 @@ const MAX_FAILED_LOGINS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
 
 function publicUser(user) {
+  const { email, phone } = decryptUser(user);
   return {
     id: String(user._id),
-    email: user.email,
-    phone: user.phone ?? null,
+    email,
+    phone: phone ?? null,
     role: user.role,
     permissions: permissionsFor(user.role),
   };
@@ -46,7 +48,7 @@ authRouter.post("/register", limitHashing, async (req, res, next) => {
     if (!claimed) return refuse();
     claimedKeyId = claimed._id;
 
-    if (await User.exists({ email })) {
+    if (await User.exists(userByEmail(email))) {
       await AccessKey.updateOne({ _id: claimedKeyId }, { $set: { redeemedBy: null, redeemedAt: null } });
       claimedKeyId = null;
       return refuse();
@@ -54,8 +56,7 @@ authRouter.post("/register", limitHashing, async (req, res, next) => {
 
     const user = await User.create({
       _id: userId,
-      email,
-      phone,
+      ...encryptUserFields(userId, { email, phone }),
       passwordHash: await hashPassword(password),
       role: ROLES.CUSTOMER,
       accessKey: claimed._id,
@@ -80,7 +81,7 @@ authRouter.post("/login", limitHashing, async (req, res, next) => {
     const password = v.password(req.body);
     const fail = () => res.status(401).json({ error: "Invalid credentials" });
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne(userByEmail(email));
     if (!user || !user.active) {
       await burnPasswordCheck(password);
       return fail();
@@ -111,6 +112,9 @@ authRouter.post("/login", limitHashing, async (req, res, next) => {
       return fail();
     }
 
+    // Transparent upgrade: legacy scrypt (or weaker Argon2id) hashes are
+    // replaced now, while we hold the verified plaintext password.
+    if (needsRehash(user.passwordHash)) user.passwordHash = await hashPassword(password);
     user.failedLogins = 0;
     user.lockedUntil = undefined;
     user.lastLoginAt = new Date();

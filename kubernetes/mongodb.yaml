@@ -20,6 +20,13 @@
 #     --from-literal=app_password="$(openssl rand -base64 30)"
 # Init scripts run ONCE, on an empty data directory. Changing these values
 # later does not change the users already stored on the volume.
+#
+# TLS (optional, staged; see kubernetes/scripts/mongo-tls.sh and
+# upgrade-mongo-tls.sh): lines between "# TLS-BEGIN" and "# TLS-END" are kept
+# by render.sh only when MONGO_TLS_MODE (config.env) is not "disabled"; the
+# --tlsMode value is MONGO_TLS_MODE. They need the mongo-tls Secret
+# (ca.crt + server.pem). Applying this file by hand without render.sh enables
+# TLS (preferTLS); delete those blocks to run without it.
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -117,6 +124,20 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 27017
+        # TLS-BEGIN
+        # Args go to mongod via the official entrypoint (an arg starting with
+        # "-" becomes "mongod <args>"), which still adds --auth and runs the
+        # first-boot init (on 127.0.0.1, with allowTLS). Clients need not
+        # present a certificate; the CA file is required by mongod anyway.
+        args:
+        - --tlsMode
+        - preferTLS                   # render.sh: MONGO_TLS_MODE
+        - --tlsCertificateKeyFile
+        - /run/secrets/mongo-tls/server.pem
+        - --tlsCAFile
+        - /run/secrets/mongo-tls/ca.crt
+        - --tlsAllowConnectionsWithoutCertificates
+        # TLS-END
         # The official entrypoint reads *_FILE variants, so credentials are
         # files from the mongo-auth Secret, never environment variables.
         env:
@@ -125,20 +146,29 @@ spec:
         - name: MONGO_INITDB_ROOT_PASSWORD_FILE
           value: /run/secrets/mongo/root_password
         # `ping` needs no authentication, so the probe carries no credentials.
+        # With the mongo-tls Secret mounted it connects over TLS and verifies
+        # the cert (SAN includes 127.0.0.1), which every TLS mode accepts.
         startupProbe:
           exec:
-            command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+            command: &mongo-ping
+            - sh
+            - -c
+            - >-
+              if [ -f /run/secrets/mongo-tls/ca.crt ]; then
+              set -- --tls --tlsCAFile /run/secrets/mongo-tls/ca.crt; fi;
+              exec mongosh --quiet --norc --host 127.0.0.1 "$@"
+              --eval "db.adminCommand('ping').ok"
           periodSeconds: 10
           timeoutSeconds: 15
           failureThreshold: 30
         readinessProbe:
           exec:
-            command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+            command: *mongo-ping
           periodSeconds: 15
           timeoutSeconds: 15
         livenessProbe:
           exec:
-            command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+            command: *mongo-ping
           periodSeconds: 30
           timeoutSeconds: 15
           failureThreshold: 6
@@ -165,6 +195,11 @@ spec:
         - name: mongo-auth
           mountPath: /run/secrets/mongo
           readOnly: true
+        # TLS-BEGIN
+        - name: mongo-tls
+          mountPath: /run/secrets/mongo-tls
+          readOnly: true
+        # TLS-END
       volumes:
       - name: data
         persistentVolumeClaim:
@@ -180,6 +215,15 @@ spec:
         secret:
           secretName: mongo-auth
           defaultMode: 0440           # group 999 (fsGroup) can read
+      # TLS-BEGIN
+      - name: mongo-tls
+        secret:
+          secretName: mongo-tls
+          defaultMode: 0440
+          items:
+          - { key: ca.crt, path: ca.crt }
+          - { key: server.pem, path: server.pem }
+      # TLS-END
 ---
 apiVersion: v1
 kind: Service
