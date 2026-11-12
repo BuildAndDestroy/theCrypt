@@ -18,6 +18,7 @@ import { PERMISSIONS, ROLES, isStaff } from "../lib/rbac.js";
 import * as v from "../lib/validate.js";
 import { requirePermission } from "../middleware/auth.js";
 import { limitHashing } from "../middleware/limits.js";
+import { audit } from "../lib/audit.js";
 
 export const usersRouter = Router();
 usersRouter.use(requirePermission(PERMISSIONS.USERS_READ));
@@ -115,6 +116,7 @@ usersRouter.post("/", manage, limitHashing, async (req, res, next) => {
       createdBy: req.user._id,
       ...(totp ? { totpSecret: totp.stored } : {}),
     });
+    audit("user.create", { by: req.user._id, user: user._id, role: r });
     res.status(201).json({ user: serialize(user.toObject(), req.user), totp: totp?.shown ?? null });
   } catch (err) {
     if (err?.code === 11000) return res.status(409).json({ error: "An account with that email already exists." });
@@ -132,6 +134,7 @@ usersRouter.post("/:id/active", manage, async (req, res, next) => {
     if (user.active) { user.failedLogins = 0; user.lockedUntil = undefined; }
     await user.save();
     if (!user.active) await Session.deleteMany({ user: user._id });
+    audit(user.active ? "user.enable" : "user.disable", { by: req.user._id, user: user._id, role: user.role });
     res.json({ user: serialize(user.toObject(), req.user) });
   } catch (err) {
     next(err);
@@ -148,6 +151,7 @@ usersRouter.post("/:id/role", manage, async (req, res, next) => {
     const r = role(req.body);
     let totp = null;
     if (user.role !== r) {
+      audit("user.role", { by: req.user._id, user: user._id, from: user.role, to: r });
       user.role = r;
       if (isStaff(r) && !user.totpSecret) {
         totp = newTotp(user._id, decryptUser(user).email);
@@ -176,6 +180,7 @@ usersRouter.post("/:id/password", manage, limitHashing, async (req, res, next) =
     user.lockedUntil = undefined;
     await user.save();
     await Session.deleteMany({ user: user._id });
+    audit("user.password_reset", { by: req.user._id, user: user._id, role: user.role });
     res.json({ user: serialize(user.toObject(), req.user) });
   } catch (err) {
     next(err);
@@ -192,6 +197,7 @@ usersRouter.post("/:id/totp", manage, async (req, res, next) => {
     user.totpSecret = totp.stored;
     await user.save();
     await Session.deleteMany({ user: user._id });
+    audit("user.totp_reset", { by: req.user._id, user: user._id, role: user.role });
     res.json({ user: serialize(user.toObject(), req.user), totp: totp.shown });
   } catch (err) {
     next(err);
@@ -209,6 +215,7 @@ usersRouter.delete("/:id", manage, async (req, res, next) => {
     const { deletedCount: messages } = await Message.deleteMany({ customer: user._id });
     await AccessKey.updateMany({ redeemedBy: user._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
     await User.deleteOne({ _id: user._id });
+    audit("user.delete", { by: req.user._id, user: user._id, role: user.role, messagesDeleted: messages });
     res.json({ ok: true, messagesDeleted: messages });
   } catch (err) {
     next(err);
