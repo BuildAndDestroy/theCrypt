@@ -8,6 +8,7 @@ import * as v from "../lib/validate.js";
 import { endSession, requireAuth, startSession } from "../middleware/auth.js";
 import { limitHashing } from "../middleware/limits.js";
 import { secret } from "../lib/secrets.js";
+import { audit } from "../lib/audit.js";
 
 export const authRouter = Router();
 
@@ -46,12 +47,16 @@ authRouter.post("/register", limitHashing, async (req, res, next) => {
     // One generic answer for bad key / used key / taken email: don't help
     // anyone enumerate keys or registered addresses.
     const refuse = () => res.status(400).json({ error: "Registration failed. Check your key and details." });
-    if (!claimed) return refuse();
+    if (!claimed) {
+      audit("register.fail", { reason: "bad_key" }); // wrong, used or revoked key
+      return refuse();
+    }
     claimedKeyId = claimed._id;
 
     if (await User.exists(userByEmail(email))) {
       await AccessKey.updateOne({ _id: claimedKeyId }, { $set: { redeemedBy: null, redeemedAt: null } });
       claimedKeyId = null;
+      audit("register.fail", { reason: "email_taken", key: claimed._id });
       return refuse();
     }
 
@@ -64,6 +69,7 @@ authRouter.post("/register", limitHashing, async (req, res, next) => {
     });
     claimedKeyId = null;
     await startSession(res, user);
+    audit("register.ok", { user: user._id, key: claimed._id });
     res.status(201).json({ user: publicUser(user) });
   } catch (err) {
     // Release the key if anything after the claim failed (e.g. an email race).
@@ -85,14 +91,17 @@ authRouter.post("/login", limitHashing, async (req, res, next) => {
     const user = await User.findOne(userByEmail(email));
     if (!user || !user.active) {
       await burnPasswordCheck(password);
+      audit("login.fail", user ? { reason: "disabled", user: user._id, role: user.role } : { reason: "no_account" });
       return fail();
     }
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       await burnPasswordCheck(password);
+      audit("login.fail", { reason: "locked", user: user._id, role: user.role, lockedUntil: user.lockedUntil });
       return res.status(429).json({ error: "Too many attempts. Try again later." });
     }
 
     let ok = await verifyPassword(password, user.passwordHash);
+    let reason = ok ? null : "bad_password"; // logged only, never sent
 
     // Staff second factor. The predefined admin uses ADMIN_TOTP_SECRET (when
     // configured); every created admin / readonly account has its own secret
@@ -109,18 +118,25 @@ authRouter.post("/login", limitHashing, async (req, res, next) => {
         totpSecret = decrypt(user.totpSecret, userField(user._id, "totpSecret"));
       }
       if (required) {
-        const totp = req.body?.totp;
-        ok = Boolean(totpSecret) && typeof totp === "string" && verifyTotp(totpSecret, totp.trim());
+        const totp = typeof req.body?.totp === "string" ? req.body.totp.trim() : "";
+        if (!totpSecret) reason = "totp_not_configured"; // staff account with no secret: use Reset 2FA
+        else if (!totp) reason = "totp_missing";
+        else if (!verifyTotp(totpSecret, totp)) reason = "totp_invalid"; // wrong code, wrong secret, or phone clock off
+        ok = !reason;
       }
     }
 
     if (!ok) {
       user.failedLogins = (user.failedLogins ?? 0) + 1;
+      const failures = user.failedLogins;
+      let lockedUntil;
       if (user.failedLogins >= MAX_FAILED_LOGINS) {
-        user.lockedUntil = new Date(Date.now() + LOCKOUT_MS);
+        lockedUntil = user.lockedUntil = new Date(Date.now() + LOCKOUT_MS);
         user.failedLogins = 0;
       }
       await user.save();
+      audit("login.fail", { reason, user: user._id, role: user.role, failures });
+      if (lockedUntil) audit("login.locked", { user: user._id, role: user.role, lockedUntil });
       return fail();
     }
 
@@ -132,6 +148,7 @@ authRouter.post("/login", limitHashing, async (req, res, next) => {
     user.lastLoginAt = new Date();
     await user.save();
     await startSession(res, user);
+    audit("login.ok", { user: user._id, role: user.role });
     res.json({ user: publicUser(user) });
   } catch (err) {
     next(err);

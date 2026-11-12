@@ -6,6 +6,7 @@ import { PERMISSIONS, ROLES, can } from "../lib/rbac.js";
 import * as v from "../lib/validate.js";
 import { requirePermission } from "../middleware/auth.js";
 import { usersRouter } from "./users.js";
+import { audit } from "../lib/audit.js";
 import { allowSend, listMessages, MAX_MESSAGE, newMessage, serializeMessage } from "./chat.js";
 import { adminBiopsiesRouter } from "./biopsies.js";
 import { accessKeyField, decrypt, decryptUser, encrypt } from "../lib/fieldcrypto.js";
@@ -50,6 +51,7 @@ keysRouter.post("/", manageKeys, async (req, res, next) => {
       label: encrypt(label, accessKeyField(_id)),
       createdBy: req.user._id,
     });
+    audit("key.create", { by: req.user._id, key: doc._id, hint: doc.hint });
     res.status(201).json({ key, id: String(doc._id), hint: doc.hint, label: label ?? "" });
   } catch (err) {
     next(err);
@@ -61,6 +63,7 @@ keysRouter.post("/:id/revoke", manageKeys, async (req, res, next) => {
     const id = v.objectId(req.params.id);
     const r = await AccessKey.updateOne({ _id: id, revokedAt: null }, { $set: { revokedAt: new Date() } });
     if (!r.matchedCount) return res.status(404).json({ error: "Not found" });
+    audit("key.revoke", { by: req.user._id, key: id });
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -167,6 +170,7 @@ convRouter.post("/:customerId/active", requirePermission(PERMISSIONS.USERS_MANAG
     if (typeof req.body?.active !== "boolean") throw new v.ValidationError("active must be true or false");
     await User.updateOne({ _id: customer._id }, { $set: { active: req.body.active } });
     if (!req.body.active) await Session.deleteMany({ user: customer._id });
+    audit(req.body.active ? "user.enable" : "user.disable", { by: req.user._id, user: customer._id, role: customer.role });
     res.json({ ok: true });
   } catch (err) {
     next(err);

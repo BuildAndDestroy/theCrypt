@@ -614,6 +614,13 @@ using `totp_secret` from the Secret.
   an authenticator code; created admin / read-only accounts always need one
   (per-account secret, encrypted at rest like emails). A wrong or missing code fails exactly like a wrong
   password, so it never confirms the password was right.
+- Audit log: sign-ins (with the failure reason: `no_account`, `disabled`,
+  `locked`, `bad_password`, `totp_missing`, `totp_invalid`,
+  `totp_not_configured`), lockouts, registrations, and every admin change to
+  accounts and keys are logged as one `AUDIT {json}` line each —
+  `kubectl -n tor-hidden-ns logs deploy/thecrypt -c chat-api | grep AUDIT`.
+  Only account ids, roles and reason codes are logged (no emails, passwords
+  or codes); the client still only ever sees "Invalid credentials".
 - Query filters reject MongoDB operators (`{"$ne": …}`), so NoSQL injection
   is refused.
 - Chat content is rendered with `textContent` only (no HTML injection), and
