@@ -5,7 +5,11 @@ import { emailIndexCandidates, strict } from "../lib/fieldcrypto.js";
 const { Schema, model } = mongoose;
 
 // ------------------------------------------------------------------ User
-// Admins are bootstrapped from a Secret; customers self-register with a key.
+// The predefined admin (`builtin`) is bootstrapped from a Secret; other staff
+// (admin / readonly) are created by an admin; customers self-register with a
+// key (or are created by an admin). `totpSecret` is the per-account
+// authenticator secret of created staff, encrypted like email (the builtin
+// admin's lives in the ADMIN_TOTP_SECRET Secret instead).
 // `email` and `phone` hold AES-256-GCM ciphertext (lib/fieldcrypto.js); input
 // is validated before encryption, so no length/case rules here (they would
 // corrupt the ciphertext). `emailIdx` is the HMAC blind index that login
@@ -23,6 +27,9 @@ const userSchema = new Schema(
     role: { type: String, enum: Object.values(ROLES), required: true },
     active: { type: Boolean, default: true },
     accessKey: { type: Schema.Types.ObjectId, ref: "AccessKey" },
+    builtin: { type: Boolean, default: false },
+    totpSecret: { type: String },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User" },
     // Per-account lockout. IP-based limits are useless here: over Tor every
     // visitor arrives from 127.0.0.1.
     failedLogins: { type: Number, default: 0 },

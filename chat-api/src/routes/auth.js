@@ -2,8 +2,8 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import { AccessKey, User, userByEmail } from "../models/index.js";
 import { burnPasswordCheck, hashAccessKey, hashPassword, needsRehash, verifyPassword, verifyTotp } from "../lib/crypto.js";
-import { decryptUser, encryptUserFields } from "../lib/fieldcrypto.js";
-import { ROLES, permissionsFor } from "../lib/rbac.js";
+import { decrypt, decryptUser, encryptUserFields, userField } from "../lib/fieldcrypto.js";
+import { ROLES, isStaff, permissionsFor } from "../lib/rbac.js";
 import * as v from "../lib/validate.js";
 import { endSession, requireAuth, startSession } from "../middleware/auth.js";
 import { limitHashing } from "../middleware/limits.js";
@@ -21,6 +21,7 @@ function publicUser(user) {
     email,
     phone: phone ?? null,
     role: user.role,
+    builtin: Boolean(user.builtin),
     permissions: permissionsFor(user.role),
   };
 }
@@ -93,13 +94,24 @@ authRouter.post("/login", limitHashing, async (req, res, next) => {
 
     let ok = await verifyPassword(password, user.passwordHash);
 
-    // Admin second factor (enforced whenever ADMIN_TOTP_SECRET is configured).
-    // A missing/wrong code fails exactly like a wrong password and counts
-    // toward lockout, so the response never confirms a correct password.
-    const totpSecret = user.role === ROLES.ADMIN ? secret("ADMIN_TOTP_SECRET") : undefined;
-    if (ok && totpSecret) {
-      const totp = req.body?.totp;
-      ok = typeof totp === "string" && verifyTotp(totpSecret, totp.trim());
+    // Staff second factor. The predefined admin uses ADMIN_TOTP_SECRET (when
+    // configured); every created admin / readonly account has its own secret
+    // and can't sign in without it. A missing/wrong code fails exactly like a
+    // wrong password and counts toward lockout, so the response never
+    // confirms a correct password.
+    if (ok && isStaff(user.role)) {
+      let totpSecret;
+      let required = true;
+      if (user.builtin) {
+        totpSecret = secret("ADMIN_TOTP_SECRET");
+        required = Boolean(totpSecret);
+      } else if (user.totpSecret) {
+        totpSecret = decrypt(user.totpSecret, userField(user._id, "totpSecret"));
+      }
+      if (required) {
+        const totp = req.body?.totp;
+        ok = Boolean(totpSecret) && typeof totp === "string" && verifyTotp(totpSecret, totp.trim());
+      }
     }
 
     if (!ok) {

@@ -1,28 +1,38 @@
 // Role-based access control. Routes ask for a PERMISSION, never a role, so
-// adding a role (e.g. a junior "operator" who can chat but not mint keys) is a
-// one-line change here.
+// adding a role is a one-line change here.
 
 export const ROLES = Object.freeze({
-  ADMIN: "admin",
-  CUSTOMER: "customer",
+  ADMIN: "admin",        // full operator (same rights as the predefined admin)
+  READONLY: "readonly",  // sees the console, changes nothing
+  CUSTOMER: "customer",  // registered with an access key; chats with the operator
 });
 
+/** Roles that use the operator console (and must have a second factor). */
+export const STAFF_ROLES = Object.freeze([ROLES.ADMIN, ROLES.READONLY]);
+export const isStaff = (role) => STAFF_ROLES.includes(role);
+
 export const PERMISSIONS = Object.freeze({
-  KEYS_MANAGE: "keys:manage",          // mint / list / revoke access keys
-  USERS_MANAGE: "users:manage",        // list / disable customer accounts
-  CHATS_ALL: "chats:all",              // read + reply to every conversation
-  BIOPSIES_MANAGE: "biopsies:manage",  // set / reset biopsy countdown deadlines
+  KEYS_READ: "keys:read",              // list access keys
+  KEYS_MANAGE: "keys:manage",          // mint / revoke access keys
+  USERS_READ: "users:read",            // list accounts
+  USERS_MANAGE: "users:manage",        // create / disable / delete accounts, change roles
+  CHATS_READ: "chats:read",            // read every conversation
+  CHATS_ALL: "chats:all",              // reply to every conversation (and mark it read)
+  BIOPSIES_READ: "biopsies:read",      // see countdowns + archive status
+  BIOPSIES_MANAGE: "biopsies:manage",  // set / reset deadlines, upload archives
   CHAT_OWN: "chat:own",                // read + write your own conversation
 });
 
+const P = PERMISSIONS;
 const ROLE_PERMISSIONS = Object.freeze({
   [ROLES.ADMIN]: new Set([
-    PERMISSIONS.KEYS_MANAGE,
-    PERMISSIONS.USERS_MANAGE,
-    PERMISSIONS.CHATS_ALL,
-    PERMISSIONS.BIOPSIES_MANAGE,
+    P.KEYS_READ, P.KEYS_MANAGE,
+    P.USERS_READ, P.USERS_MANAGE,
+    P.CHATS_READ, P.CHATS_ALL,
+    P.BIOPSIES_READ, P.BIOPSIES_MANAGE,
   ]),
-  [ROLES.CUSTOMER]: new Set([PERMISSIONS.CHAT_OWN]),
+  [ROLES.READONLY]: new Set([P.KEYS_READ, P.USERS_READ, P.CHATS_READ, P.BIOPSIES_READ]),
+  [ROLES.CUSTOMER]: new Set([P.CHAT_OWN]),
 });
 
 export function can(user, permission) {

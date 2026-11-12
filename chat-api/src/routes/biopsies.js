@@ -74,7 +74,8 @@ export async function downloadHandler(req, res) {
 
 // -------------------------------------------------------------- admin
 export const adminBiopsiesRouter = Router();
-adminBiopsiesRouter.use(requirePermission(PERMISSIONS.BIOPSIES_MANAGE));
+adminBiopsiesRouter.use(requirePermission(PERMISSIONS.BIOPSIES_READ));
+const manageBiopsies = requirePermission(PERMISSIONS.BIOPSIES_MANAGE);
 
 function serializeAdmin(b, upload) {
   return {
@@ -133,7 +134,7 @@ const MIN_DEADLINE = () => Date.now() - 10 * 365 * 86_400_000;
 const MAX_DEADLINE = () => Date.now() + 5 * 365 * 86_400_000;
 
 // POST /api/admin/biopsies/:n  {deadline: ISO-8601 with timezone}
-adminBiopsiesRouter.post("/:n", async (req, res, next) => {
+adminBiopsiesRouter.post("/:n", manageBiopsies, async (req, res, next) => {
   try {
     const n = await knownBiopsy(req);
     const raw = v.text(req.body, "deadline", { max: 40 });
@@ -158,7 +159,7 @@ adminBiopsiesRouter.post("/:n", async (req, res, next) => {
 });
 
 // POST /api/admin/biopsies/:n/reset — deadline back to the generated default.
-adminBiopsiesRouter.post("/:n/reset", async (req, res, next) => {
+adminBiopsiesRouter.post("/:n/reset", manageBiopsies, async (req, res, next) => {
   try {
     const n = await knownBiopsy(req);
     await BiopsyDeadline.deleteOne({ n });
@@ -172,7 +173,7 @@ adminBiopsiesRouter.post("/:n/reset", async (req, res, next) => {
 // countdown expires (exercise / simulated content). Raw .zip body (not JSON),
 // filename in X-Filename; replaces any previous upload. Still gated by the
 // deadline, so it stays locked until then.
-adminBiopsiesRouter.put("/:n/archive", async (req, res, next) => {
+adminBiopsiesRouter.put("/:n/archive", manageBiopsies, async (req, res, next) => {
   try {
     const n = await knownBiopsy(req);
     await storeArchive({
@@ -190,7 +191,7 @@ adminBiopsiesRouter.put("/:n/archive", async (req, res, next) => {
 });
 
 // DELETE /api/admin/biopsies/:n/archive — drop the upload (back to the default).
-adminBiopsiesRouter.delete("/:n/archive", async (req, res, next) => {
+adminBiopsiesRouter.delete("/:n/archive", manageBiopsies, async (req, res, next) => {
   try {
     const n = await knownBiopsy(req);
     await deleteArchive(n);

@@ -567,10 +567,27 @@ crews, for emulation.
 
 **Access control (RBAC)** — routes check permissions, not roles:
 
-| Role | Permissions |
-|------|-------------|
-| `admin` (predefined, from the `chat-admin` Secret) | `keys:manage`, `users:manage`, `chats:all` |
-| `customer` (self-registered with a key) | `chat:own` |
+| Role | Who | Permissions |
+|------|-----|-------------|
+| `admin` | the predefined admin (from the `chat-admin` Secret) and any admin it creates | `keys:read`, `keys:manage`, `users:read`, `users:manage`, `chats:read`, `chats:all`, `biopsies:read`, `biopsies:manage` |
+| `readonly` | created by an admin | `keys:read`, `users:read`, `chats:read`, `biopsies:read` — sees every console tab, changes nothing (and doesn't clear unread badges) |
+| `customer` | self-registered with an access key (always this role), or created by an admin | `chat:own` |
+
+**User management** — the console's **Users** tab (`/api/admin/users`) lets an
+admin create accounts (email, optional phone, password, role), disable /
+re-enable them (disabling ends their sessions), change their role, reset
+their password (typed or generated; clears any lockout and ends their
+sessions), reset a staff member's authenticator, and delete them. Deleting a customer also
+deletes their conversation, and the access key they redeemed stays burned.
+Guard rails: the predefined admin can't be changed from the console (the
+Secret is its source of truth and is re-applied on every boot), and nobody
+can disable, demote, delete or reset the password of their own account
+(the predefined admin's password only changes via the Secret).
+
+Every created `admin` / `readonly` account gets **its own TOTP secret**,
+shown once to the admin who creates (or promotes) it; they sign in with it
+on `/admin/`. Use *Reset 2FA* if one is lost. The predefined admin keeps
+using `totp_secret` from the Secret.
 
 **Anonymity / hardening**
 
@@ -593,8 +610,9 @@ crews, for emulation.
 - Secrets are mounted as read-only files under `/run/secrets/`, never passed
   as environment variables. chat-api gets only the MongoDB app user (not root),
   and nginx and Tor get no credentials at all.
-- Admin TOTP: with `totp_secret` set, the operator login requires an
-  authenticator code. A wrong or missing code fails exactly like a wrong
+- Staff TOTP: with `totp_secret` set, the predefined admin's login requires
+  an authenticator code; created admin / read-only accounts always need one
+  (per-account secret, encrypted at rest like emails). A wrong or missing code fails exactly like a wrong
   password, so it never confirms the password was right.
 - Query filters reject MongoDB operators (`{"$ne": …}`), so NoSQL injection
   is refused.
