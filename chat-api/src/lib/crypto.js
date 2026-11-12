@@ -124,8 +124,32 @@ export function sha256(value) {
 
 // ------------------------------------------------------------------ TOTP
 // RFC 6238 (SHA-1, 30 s, 6 digits) — what every authenticator app speaks.
+const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+/** A new random TOTP secret: 160 bits, base32 (no padding). */
+export function generateTotpSecret() {
+  const bytes = crypto.randomBytes(20);
+  let bits = 0, value = 0, out = "";
+  for (const b of bytes) {
+    value = (value << 8) | b;
+    bits += 8;
+    while (bits >= 5) {
+      out += BASE32[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) out += BASE32[(value << (5 - bits)) & 31];
+  return out;
+}
+
+/** otpauth:// URI an authenticator app imports (or `qrencode` renders). */
+export function totpUri(base32Secret, account) {
+  const label = encodeURIComponent(`TheCrypt:${account}`);
+  return `otpauth://totp/${label}?secret=${base32Secret}&issuer=TheCrypt&algorithm=SHA1&digits=6&period=30`;
+}
+
 function base32Decode(input) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const alphabet = BASE32;
   const clean = String(input).toUpperCase().replace(/[^A-Z2-7]/g, "");
   let bits = 0, value = 0;
   const out = [];

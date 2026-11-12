@@ -2,9 +2,10 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import { AccessKey, Message, Session, User } from "../models/index.js";
 import { generateAccessKey, hashAccessKey } from "../lib/crypto.js";
-import { PERMISSIONS, ROLES } from "../lib/rbac.js";
+import { PERMISSIONS, ROLES, can } from "../lib/rbac.js";
 import * as v from "../lib/validate.js";
 import { requirePermission } from "../middleware/auth.js";
+import { usersRouter } from "./users.js";
 import { allowSend, listMessages, MAX_MESSAGE, newMessage, serializeMessage } from "./chat.js";
 import { adminBiopsiesRouter } from "./biopsies.js";
 import { accessKeyField, decrypt, decryptUser, encrypt } from "../lib/fieldcrypto.js";
@@ -13,7 +14,8 @@ export const adminRouter = Router();
 
 // ------------------------------------------------------------ access keys
 const keysRouter = Router();
-keysRouter.use(requirePermission(PERMISSIONS.KEYS_MANAGE));
+keysRouter.use(requirePermission(PERMISSIONS.KEYS_READ));
+const manageKeys = requirePermission(PERMISSIONS.KEYS_MANAGE);
 
 keysRouter.get("/", async (_req, res, next) => {
   try {
@@ -25,7 +27,8 @@ keysRouter.get("/", async (_req, res, next) => {
         label: decrypt(k.label, accessKeyField(k._id)) ?? "",
         createdAt: k.createdAt,
         redeemedAt: k.redeemedAt ?? null,
-        redeemedBy: k.redeemedBy ? decryptUser(k.redeemedBy).email : null,
+        // A redeemed key whose account was deleted populates to null.
+        redeemedBy: k.redeemedBy ? decryptUser(k.redeemedBy).email : k.redeemedAt ? "(deleted account)" : null,
         revokedAt: k.revokedAt ?? null,
       })),
     });
@@ -35,7 +38,7 @@ keysRouter.get("/", async (_req, res, next) => {
 });
 
 // The plaintext key is returned ONCE, here. Only its hash is stored.
-keysRouter.post("/", async (req, res, next) => {
+keysRouter.post("/", manageKeys, async (req, res, next) => {
   try {
     const label = v.text(req.body, "label", { required: false, max: 120 });
     const key = generateAccessKey();
@@ -53,7 +56,7 @@ keysRouter.post("/", async (req, res, next) => {
   }
 });
 
-keysRouter.post("/:id/revoke", async (req, res, next) => {
+keysRouter.post("/:id/revoke", manageKeys, async (req, res, next) => {
   try {
     const id = v.objectId(req.params.id);
     const r = await AccessKey.updateOne({ _id: id, revokedAt: null }, { $set: { revokedAt: new Date() } });
@@ -68,7 +71,7 @@ adminRouter.use("/keys", keysRouter);
 
 // ---------------------------------------------------------- conversations
 const convRouter = Router();
-convRouter.use(requirePermission(PERMISSIONS.CHATS_ALL));
+convRouter.use(requirePermission(PERMISSIONS.CHATS_READ));
 
 // Every customer, with their latest message and unread count — newest
 // activity first. Customers who haven't written yet are listed too.
@@ -125,7 +128,11 @@ convRouter.get("/:customerId/messages", async (req, res, next) => {
     if (!customer) return;
     const after = v.optionalObjectId(req.query.after, "after");
     const messages = await listMessages(customer._id, after);
-    const unseen = messages.filter((m) => m.from === "customer" && !m.seenByOperator).map((m) => m._id);
+    // Only someone who can reply clears the unread badge; a readonly viewer
+    // leaves the conversation as they found it.
+    const unseen = can(req.user, PERMISSIONS.CHATS_ALL)
+      ? messages.filter((m) => m.from === "customer" && !m.seenByOperator).map((m) => m._id)
+      : [];
     if (unseen.length) await Message.updateMany({ _id: mongoose.trusted({ $in: unseen }) }, { $set: { seenByOperator: true } });
     res.json({ messages: messages.map(serializeMessage) });
   } catch (err) {
@@ -133,7 +140,7 @@ convRouter.get("/:customerId/messages", async (req, res, next) => {
   }
 });
 
-convRouter.post("/:customerId/messages", async (req, res, next) => {
+convRouter.post("/:customerId/messages", requirePermission(PERMISSIONS.CHATS_ALL), async (req, res, next) => {
   try {
     const customer = await loadCustomer(req, res);
     if (!customer) return;
@@ -169,3 +176,5 @@ convRouter.post("/:customerId/active", requirePermission(PERMISSIONS.USERS_MANAG
 adminRouter.use("/conversations", convRouter);
 
 adminRouter.use("/biopsies", adminBiopsiesRouter);
+
+adminRouter.use("/users", usersRouter);

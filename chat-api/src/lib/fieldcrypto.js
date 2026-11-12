@@ -30,7 +30,7 @@ const PREFIX = "v1";
 const HKDF_SALT = Buffer.from("thecrypt/field-encryption/v1");
 
 /** Padding block size (bytes) per field kind. */
-export const PAD = { body: 256, label: 64, email: 64, phone: 32 };
+export const PAD = { body: 256, label: 64, email: 64, phone: 32, totpSecret: 64 };
 
 export class DecryptionError extends Error {
   constructor(message) {

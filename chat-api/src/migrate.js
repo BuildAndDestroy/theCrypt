@@ -93,9 +93,9 @@ async function sweep(model, projection, plan) {
 
 function planUser(doc) {
   const set = {};
-  const guard = ["email", "phone", "emailIdx"];
+  const guard = ["email", "phone", "totpSecret", "emailIdx"];
   let plain = false, stale = false;
-  for (const field of ["email", "phone"]) {
+  for (const field of ["email", "phone", "totpSecret"]) {
     verify(doc[field], userField(doc._id, field));
     const s = state(doc[field]);
     if (s === "plain" || s === "stale") {
@@ -137,13 +137,13 @@ async function remaining() {
   const notEnc = { $not: /^v1:/ };
   const nonEmptyPlain = (field) => ({ [field]: { $exists: true, $nin: [null, ""], ...notEnc } });
   const users = await User.collection.countDocuments({
-    $or: [nonEmptyPlain("email"), nonEmptyPlain("phone"), { emailIdx: { $exists: false } }, { emailIdx: null }],
+    $or: [nonEmptyPlain("email"), nonEmptyPlain("phone"), nonEmptyPlain("totpSecret"), { emailIdx: { $exists: false } }, { emailIdx: null }],
   });
   const messages = await Message.collection.countDocuments(nonEmptyPlain("body"));
   const accessKeys = await AccessKey.collection.countDocuments(nonEmptyPlain("label"));
   const curPrefix = new RegExp(`^v1:(?!${currentKid()}:)`);
   const stale =
-    (await User.collection.countDocuments({ $or: [{ email: curPrefix }, { phone: curPrefix }] })) +
+    (await User.collection.countDocuments({ $or: [{ email: curPrefix }, { phone: curPrefix }, { totpSecret: curPrefix }] })) +
     (await Message.collection.countDocuments({ body: curPrefix })) +
     (await AccessKey.collection.countDocuments({ label: curPrefix }));
   return { users, messages, accessKeys, stale };
@@ -161,7 +161,7 @@ async function main() {
   await connect({ attempts: 3 });
   if (!DRY) await User.syncIndexes(); // emailIdx partial unique index; drops the old email_1 index
 
-  const users = await sweep(User, { email: 1, phone: 1, emailIdx: 1 }, planUser);
+  const users = await sweep(User, { email: 1, phone: 1, totpSecret: 1, emailIdx: 1 }, planUser);
   const messages = await sweep(Message, { body: 1 }, planMessage);
   const accessKeys = await sweep(AccessKey, { label: 1 }, planAccessKey);
   for (const [name, s] of Object.entries({ users, messages, accessKeys })) {

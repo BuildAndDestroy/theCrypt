@@ -22,8 +22,11 @@
                     <i class="bi bi-key"></i> Keys</button></li>
                 <li class="nav-item"><button class="nav-link d-none" data-bs-toggle="tab" data-bs-target="#paneTimers" type="button" role="tab" id="timersTab">
                     <i class="bi bi-hourglass-split"></i> Countdowns</button></li>
+                <li class="nav-item"><button class="nav-link d-none" data-bs-toggle="tab" data-bs-target="#paneUsers" type="button" role="tab" id="usersTab">
+                    <i class="bi bi-people"></i> Users</button></li>
             </ul>
             <div class="ms-auto d-flex align-items-center gap-3">
+                <span id="roBadge" class="badge bg-secondary d-none" title="You can view everything but change nothing">read-only</span>
                 <span id="whoami" class="small text-secondary d-none"></span>
                 <button id="logoutBtn" class="btn btn-sm btn-outline-secondary d-none" type="button">
                     <i class="bi bi-box-arrow-right"></i> Sign out
@@ -89,7 +92,7 @@
                                 <button id="toggleActiveBtn" class="btn btn-sm btn-outline-danger ms-auto d-none" type="button"></button>
                             </div>
                             <div id="messages" class="chat-log" aria-live="polite"></div>
-                            <div class="card-footer">
+                            <div id="sendFooter" class="card-footer">
                                 <form id="sendForm" class="d-flex gap-2" autocomplete="off">
                                     <textarea id="sendBody" class="form-control" rows="2" maxlength="4000" placeholder="Reply… (Enter to send, Shift+Enter for a new line)" disabled required></textarea>
                                     <button id="sendBtn" class="btn btn-primary px-4" type="submit" aria-label="Send" disabled><i class="bi bi-send"></i></button>
@@ -103,7 +106,7 @@
 
             <!-- Keys -->
             <div class="tab-pane fade" id="paneKeys" role="tabpanel">
-                <div class="card crypt-panel mb-3">
+                <div id="keyFormCard" class="card crypt-panel mb-3">
                     <div class="card-body">
                         <form id="keyForm" class="row g-2 align-items-end" autocomplete="off">
                             <div class="col-md-6">
@@ -121,9 +124,9 @@
                                 <button id="copyKeyBtn" class="btn btn-sm btn-primary" type="button"><i class="bi bi-clipboard"></i> Copy</button>
                             </div>
                         </div>
-                        <div id="keyError" class="alert alert-danger mt-3 mb-0 d-none"></div>
                     </div>
                 </div>
+                <div id="keyError" class="alert alert-danger d-none"></div>
                 <div class="card crypt-panel">
                     <div class="table-responsive">
                         <table class="table table-dark table-hover mb-0 align-middle">
@@ -162,6 +165,69 @@
                                 <tr><th>#</th><th>Biopsy</th><th>Deadline (UTC)</th><th>Status</th><th>Change deadline (UTC)</th><th>Leak archive</th><th></th></tr>
                             </thead>
                             <tbody id="timerTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users -->
+            <div class="tab-pane fade" id="paneUsers" role="tabpanel">
+                <div id="userFormCard" class="card crypt-panel mb-3">
+                    <div class="card-body">
+                        <form id="userForm" class="row g-2 align-items-end" autocomplete="off" novalidate>
+                            <div class="col-md-3">
+                                <label class="form-label" for="newUserEmail">Email</label>
+                                <input class="form-control" id="newUserEmail" name="email" type="email" maxlength="254" required autocomplete="off">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="newUserPhone">Phone <span class="text-secondary">(optional)</span></label>
+                                <input class="form-control" id="newUserPhone" name="phone" maxlength="25" autocomplete="off">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="newUserPassword">Password <span class="text-secondary">(12+ chars)</span></label>
+                                <input class="form-control" id="newUserPassword" name="password" type="password" minlength="12" maxlength="200" required autocomplete="new-password">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="newUserRole">Role</label>
+                                <select class="form-select" id="newUserRole" name="role">
+                                    <option value="customer" selected>Customer</option>
+                                    <option value="readonly">Read only</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                            <div class="col-md-auto">
+                                <button class="btn btn-primary" type="submit"><i class="bi bi-person-plus"></i> Create user</button>
+                            </div>
+                        </form>
+                        <div class="small text-secondary mt-2">
+                            <strong>Admin</strong>: everything you can do. <strong>Read only</strong>: sees the inbox, keys,
+                            countdowns and users, changes nothing. <strong>Customer</strong>: the chat page only (customers
+                            who register with an access key get this role automatically). Admin and read-only accounts
+                            sign in with their own authenticator code.
+                        </div>
+                        <div id="newTotp" class="alert alert-success mt-3 mb-0 d-none">
+                            <div class="mb-2"><strong>Authenticator secret for <span id="newTotpWho"></span></strong> &mdash;
+                                hand it over securely now. It is stored encrypted and <strong>cannot be shown again</strong>
+                                (use <em>Reset 2FA</em> to issue a new one).</div>
+                            <div class="d-flex gap-2 align-items-center flex-wrap mb-2">
+                                <code id="newTotpSecret" class="fs-5"></code>
+                                <button id="copyTotpBtn" class="btn btn-sm btn-primary" type="button"><i class="bi bi-clipboard"></i> Copy secret</button>
+                                <button id="copyTotpUriBtn" class="btn btn-sm btn-outline-primary" type="button"><i class="bi bi-link-45deg"></i> Copy otpauth:// URI</button>
+                            </div>
+                            <div class="small">Time-based, 6 digits, 30&nbsp;s. To show a QR code offline:
+                                <code>qrencode -t ansiutf8 '&lt;URI&gt;'</code></div>
+                            <code id="newTotpUri" class="d-none"></code>
+                        </div>
+                    </div>
+                </div>
+                <div id="userError" class="alert alert-danger d-none" role="alert"></div>
+                <div class="card crypt-panel">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0 align-middle">
+                            <thead>
+                                <tr><th>Account</th><th>Role</th><th>Status</th><th>2FA</th><th>Last sign-in</th><th>Created</th><th></th></tr>
+                            </thead>
+                            <tbody id="userTable"></tbody>
                         </table>
                     </div>
                 </div>

@@ -1,4 +1,7 @@
-// Operator console: inbox (polled), replies, access-key management.
+// Operator console: inbox (polled), replies, access keys, countdowns, users.
+// What is shown follows the signed-in user's permissions; a read-only account
+// sees every tab but no controls that change anything (the API enforces the
+// same rules — this only keeps the UI honest).
 "use strict";
 
 (function () {
@@ -6,6 +9,9 @@
   const el = api.el;
   const LIST_POLL_MS = 5000;
   const CHAT_POLL_MS = 3000;
+
+  let perms = new Set();
+  const may = (p) => perms.has(p);
 
   let conversations = [];
   let current = null;          // selected conversation object
@@ -105,15 +111,16 @@
     seen.clear();
     messagesEl.replaceChildren();
     renderHeader();
-    api.show("toggleActiveBtn", true);
-    sendBody.disabled = false;
-    document.getElementById("sendBtn").disabled = false;
+    api.show("toggleActiveBtn", may("users:manage"));
+    const canReply = may("chats:all");
+    sendBody.disabled = !canReply;
+    document.getElementById("sendBtn").disabled = !canReply;
     api.setError("sendError", "");
     renderConversations();
     chatPoll.start();
     // The unread badge clears once the open conversation has been fetched.
     setTimeout(() => listPoll.now(), 500);
-    sendBody.focus();
+    if (canReply) sendBody.focus();
   }
 
   document.getElementById("sendForm").addEventListener("submit", async (ev) => {
@@ -171,7 +178,7 @@
     }
     for (const k of keys) {
       let action = null;
-      if (!k.revokedAt && !k.redeemedAt) {
+      if (!k.revokedAt && !k.redeemedAt && may("keys:manage")) {
         action = el("button", { type: "button", class: "btn btn-sm btn-outline-danger" }, "Revoke");
         action.addEventListener("click", async () => {
           if (!confirm("Revoke key …" + k.hint + "? It can no longer be used to register.")) return;
@@ -286,6 +293,7 @@
 
   function archiveCell(b) {
     const cell = el("td", null);
+    const manage = may("biopsies:manage");
     if (b.upload) {
       cell.appendChild(el("div", { class: "small" },
         el("span", { class: "badge bg-info text-dark me-1" }, "custom"),
@@ -294,6 +302,7 @@
       cell.appendChild(el("div", { class: "small text-secondary" },
         "default · " + (b.defaultArchive || "—")));
     }
+    if (!manage) return cell;
     const file = el("input", { type: "file", accept: ".zip,application/zip", class: "form-control form-control-sm mt-1 timer-file" });
     const up = el("button", { type: "button", class: "btn btn-sm btn-outline-primary mt-1" }, b.upload ? "Replace" : "Upload");
     up.addEventListener("click", () => {
@@ -316,6 +325,7 @@
   }
 
   function timerRow(b, now) {
+    const manage = may("biopsies:manage");
     const input = el("input", {
       type: "datetime-local", class: "form-control form-control-sm timer-input",
       value: utcInput(b.deadline), step: "60",
@@ -328,7 +338,7 @@
     });
 
     let resetBtn = null;
-    if (b.overridden) {
+    if (b.overridden && manage) {
       resetBtn = el("button", {
         type: "button", class: "btn btn-sm btn-outline-secondary",
         title: "Back to the generated default (" + utcText(b.defaultDeadline) + " UTC)",
@@ -353,7 +363,7 @@
       el("td", null, el("a", { href: "/biopsy-" + b.n + "/", target: "_blank", rel: "noopener" }, b.title)),
       deadlineCell,
       el("td", null, status),
-      el("td", null, el("div", { class: "d-flex gap-2 align-items-center" }, input, setBtn)),
+      el("td", null, manage ? el("div", { class: "d-flex gap-2 align-items-center" }, input, setBtn) : el("span", { class: "text-secondary small" }, "—")),
       archiveCell(b),
       el("td", { class: "text-end" }, resetBtn),
     );
@@ -377,9 +387,167 @@
     loadTimers().catch((e) => api.setError("timerError", e.message));
   });
 
+  // ------------------------------------------------------------- users
+  const ROLE_LABEL = { admin: "Admin", readonly: "Read only", customer: "Customer" };
+
+  function showTotp(email, totp) {
+    if (!totp) return;
+    document.getElementById("newTotpWho").textContent = email;
+    document.getElementById("newTotpSecret").textContent = totp.secret;
+    document.getElementById("newTotpUri").textContent = totp.uri;
+    api.show("newTotp", true);
+    api.show("userFormCard", true);
+    document.getElementById("newTotp").scrollIntoView({ block: "nearest" });
+  }
+
+  async function userAction(fn) {
+    api.setError("userError", "");
+    try { await fn(); await loadUsers(); }
+    catch (e) { api.setError("userError", e.message); }
+  }
+
+  function userRow(u) {
+    const account = el("td", null,
+      el("div", null, u.email,
+        u.self ? el("span", { class: "badge bg-secondary ms-2" }, "you") : null,
+        u.builtin ? el("span", { class: "badge bg-dark border border-secondary ms-2", title: "Predefined from the chat-admin Secret; can't be changed here" }, "predefined") : null),
+      u.phone || u.keyHint
+        ? el("div", { class: "small text-secondary" },
+            [u.phone ? "☎ " + u.phone : "", u.keyHint ? "key …" + u.keyHint + (u.keyLabel ? " [" + u.keyLabel + "]" : "") : ""].filter(Boolean).join(" · "))
+        : null);
+
+    const locked = u.builtin || u.self || !may("users:manage");
+
+    let roleCell;
+    if (locked) {
+      roleCell = el("td", null, ROLE_LABEL[u.role] || u.role);
+    } else {
+      const sel = el("select", { class: "form-select form-select-sm user-role" });
+      for (const r of ["admin", "readonly", "customer"]) {
+        sel.appendChild(el("option", { value: r, selected: r === u.role ? "selected" : null }, ROLE_LABEL[r]));
+      }
+      sel.addEventListener("change", () => {
+        const to = sel.value;
+        if (!confirm("Change " + u.email + " from " + ROLE_LABEL[u.role] + " to " + ROLE_LABEL[to] + "? They are signed out.")) {
+          sel.value = u.role;
+          return;
+        }
+        userAction(async () => {
+          const { totp } = await api.post("/admin/users/" + u.id + "/role", { role: to });
+          showTotp(u.email, totp);
+        });
+      });
+      roleCell = el("td", null, sel);
+    }
+
+    const status = !u.active
+      ? el("span", { class: "badge bg-danger" }, "disabled")
+      : u.lockedUntil
+        ? el("span", { class: "badge bg-warning text-dark", title: "Too many failed sign-ins" }, "locked until " + api.fmtTime(u.lockedUntil))
+        : el("span", { class: "badge bg-success" }, "active");
+
+    let twoFactor;
+    if (u.role === "customer") twoFactor = el("span", { class: "text-secondary small" }, "—");
+    else if (u.builtin) twoFactor = el("span", { class: "small text-secondary" }, "from Secret");
+    else twoFactor = u.twoFactor ? el("span", { class: "badge bg-success" }, "on") : el("span", { class: "badge bg-danger" }, "missing");
+
+    const actions = el("div", { class: "d-flex gap-1 justify-content-end flex-wrap" });
+    if (!locked) {
+      const toggle = el("button", { type: "button", class: "btn btn-sm " + (u.active ? "btn-outline-warning" : "btn-outline-success") },
+        u.active ? "Disable" : "Enable");
+      toggle.addEventListener("click", () => {
+        if (u.active && !confirm("Disable " + u.email + "? They are signed out and cannot sign back in.")) return;
+        userAction(() => api.post("/admin/users/" + u.id + "/active", { active: !u.active }));
+      });
+      actions.appendChild(toggle);
+
+      if (u.role !== "customer") {
+        const reset = el("button", { type: "button", class: "btn btn-sm btn-outline-secondary", title: "Issue a new authenticator secret (the old one stops working)" }, "Reset 2FA");
+        reset.addEventListener("click", () => {
+          if (!confirm("Issue a new authenticator secret for " + u.email + "? Their current one stops working and they are signed out.")) return;
+          userAction(async () => {
+            const { totp } = await api.post("/admin/users/" + u.id + "/totp");
+            showTotp(u.email, totp);
+          });
+        });
+        actions.appendChild(reset);
+      }
+
+      const del = el("button", { type: "button", class: "btn btn-sm btn-outline-danger" }, "Delete");
+      del.addEventListener("click", () => {
+        const what = u.role === "customer" ? " This also deletes their entire conversation." : "";
+        if (!confirm("Permanently delete " + u.email + "?" + what + " This cannot be undone.")) return;
+        userAction(async () => {
+          await api.del("/admin/users/" + u.id);
+          if (current && current.customerId === u.id) location.reload();
+        });
+      });
+      actions.appendChild(del);
+    }
+
+    return el("tr", { class: u.active ? null : "text-secondary" },
+      account,
+      roleCell,
+      el("td", null, status),
+      el("td", null, twoFactor),
+      el("td", { class: "text-secondary small" }, u.lastLoginAt ? api.fmtTime(u.lastLoginAt) : "never"),
+      el("td", { class: "text-secondary small" }, api.fmtTime(u.createdAt)),
+      el("td", { class: "text-end" }, actions),
+    );
+  }
+
+  async function loadUsers() {
+    const { users } = await api.get("/admin/users");
+    const tbody = document.getElementById("userTable");
+    tbody.replaceChildren();
+    for (const u of users) tbody.appendChild(userRow(u));
+  }
+
+  document.getElementById("userForm").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const f = ev.target;
+    const btn = f.querySelector("button[type=submit]");
+    api.setError("userError", "");
+    api.show("newTotp", false);
+    btn.disabled = true;
+    try {
+      const body = { email: f.email.value, password: f.password.value, role: f.role.value };
+      if (f.phone.value.trim()) body.phone = f.phone.value;
+      const { user, totp } = await api.post("/admin/users", body);
+      f.reset();
+      showTotp(user.email, totp);
+      await loadUsers();
+    } catch (e) {
+      api.setError("userError", e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  async function copyText(id) {
+    const node = document.getElementById(id);
+    try { await navigator.clipboard.writeText(node.textContent); }
+    catch (e) {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }
+  document.getElementById("copyTotpBtn").addEventListener("click", () => copyText("newTotpSecret"));
+  document.getElementById("copyTotpUriBtn").addEventListener("click", () => copyText("newTotpUri"));
+
+  document.getElementById("usersTab").addEventListener("shown.bs.tab", () => {
+    loadUsers().catch((e) => api.setError("userError", e.message));
+  });
+  // Don't leave a TOTP secret on screen once the operator moves on.
+  document.getElementById("usersTab").addEventListener("hidden.bs.tab", () => api.show("newTotp", false));
+
   // ------------------------------------------------------------- auth
   function enterConsole(user) {
-    if (!user.permissions.includes("chats:all")) {
+    perms = new Set(user.permissions);
+    if (!may("chats:read")) {
       location.href = "/chat/";
       return;
     }
@@ -388,8 +556,13 @@
     api.show("consoleView", true);
     api.show("adminNav", true);
     api.show("logoutBtn", true);
-    api.show("keysTab", user.permissions.includes("keys:manage"));
-    api.show("timersTab", user.permissions.includes("biopsies:manage"));
+    api.show("keysTab", may("keys:read"));
+    api.show("keyFormCard", may("keys:manage"));
+    api.show("timersTab", may("biopsies:read"));
+    api.show("usersTab", may("users:read"));
+    api.show("userFormCard", may("users:manage"));
+    api.show("sendFooter", may("chats:all"));
+    api.show("roBadge", !may("chats:all"));
     const who = document.getElementById("whoami");
     who.textContent = user.email;
     who.classList.remove("d-none");
