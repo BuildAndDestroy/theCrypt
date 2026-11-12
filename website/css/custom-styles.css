@@ -423,3 +423,13 @@ footer.bg-dark {
     border-color: var(--crypt-blood);
     text-shadow: 0 0 18px rgba(229,72,77,0.5);
 }
+
+/* ---------- operator dialogs ---------- */
+.crypt-modal {
+    background: linear-gradient(180deg, var(--crypt-panel) 0%, var(--crypt-panel-2) 100%);
+    border: 1px solid var(--crypt-border);
+    border-radius: 12px;
+    color: var(--crypt-text);
+}
+.crypt-modal .modal-header,
+.crypt-modal .modal-footer { border-color: var(--crypt-border); }

@@ -1,11 +1,12 @@
 // Account management for the operator console: list, create, disable /
-// re-enable, change role, delete. Reading needs users:read; every change needs
-// users:manage (admins only).
+// re-enable, change role, reset password / 2FA, delete. Reading needs
+// users:read; every change needs users:manage (admins only).
 //
 // Guard rails:
 //   * the predefined admin (`builtin`, from the chat-admin Secret) can't be
 //     changed here — the Secret is its source of truth and boot re-asserts it;
-//   * nobody can disable, demote or delete their own account (no self-lockout);
+//   * nobody can disable, demote, delete or reset the password of their own
+//     account here (no self-lockout);
 //   * every staff account (admin / readonly) gets its own TOTP secret, shown
 //     ONCE to the admin who creates or promotes it.
 import { Router } from "express";
@@ -157,6 +158,25 @@ usersRouter.post("/:id/role", manage, async (req, res, next) => {
       await Session.deleteMany({ user: user._id });
     }
     res.json({ user: serialize(user.toObject(), req.user), totp: totp?.shown ?? null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --------------------------------------------------------- reset password
+// POST {password}. Any account but the predefined admin (its password comes
+// from the Secret) and your own. Clears a lockout and ends the account's
+// sessions, so the old password stops working everywhere at once.
+usersRouter.post("/:id/password", manage, limitHashing, async (req, res, next) => {
+  try {
+    const user = await changeable(req);
+    const password = v.newPassword(req.body);
+    user.passwordHash = await hashPassword(password);
+    user.failedLogins = 0;
+    user.lockedUntil = undefined;
+    await user.save();
+    await Session.deleteMany({ user: user._id });
+    res.json({ user: serialize(user.toObject(), req.user) });
   } catch (err) {
     next(err);
   }

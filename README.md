@@ -575,12 +575,14 @@ crews, for emulation.
 
 **User management** — the console's **Users** tab (`/api/admin/users`) lets an
 admin create accounts (email, optional phone, password, role), disable /
-re-enable them (disabling ends their sessions), change their role, reset a
-staff member's authenticator, and delete them. Deleting a customer also
+re-enable them (disabling ends their sessions), change their role, reset
+their password (typed or generated; clears any lockout and ends their
+sessions), reset a staff member's authenticator, and delete them. Deleting a customer also
 deletes their conversation, and the access key they redeemed stays burned.
 Guard rails: the predefined admin can't be changed from the console (the
 Secret is its source of truth and is re-applied on every boot), and nobody
-can disable, demote or delete their own account.
+can disable, demote, delete or reset the password of their own account
+(the predefined admin's password only changes via the Secret).
 
 Every created `admin` / `readonly` account gets **its own TOTP secret**,
 shown once to the admin who creates (or promotes) it; they sign in with it

@@ -461,6 +461,10 @@
       });
       actions.appendChild(toggle);
 
+      const pw = el("button", { type: "button", class: "btn btn-sm btn-outline-secondary", title: "Set a new password for this account" }, "Password");
+      pw.addEventListener("click", () => openPasswordReset(u));
+      actions.appendChild(pw);
+
       if (u.role !== "customer") {
         const reset = el("button", { type: "button", class: "btn btn-sm btn-outline-secondary", title: "Issue a new authenticator secret (the old one stops working)" }, "Reset 2FA");
         reset.addEventListener("click", () => {
@@ -495,6 +499,61 @@
       el("td", { class: "text-end" }, actions),
     );
   }
+
+  // Reset-password dialog. The admin types a password or generates one, then
+  // hands it over; the API signs the account out everywhere.
+  const pwModalEl = document.getElementById("pwModal");
+  const pwInput = document.getElementById("pwNew");
+  let pwModal = null;
+  let pwTarget = null;
+
+  function randomPassword() {
+    // 20 chars from a 54-symbol alphabet without look-alikes: ~115 bits.
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+    const out = [];
+    const buf = new Uint32Array(1);
+    while (out.length < 20) {
+      crypto.getRandomValues(buf);
+      const limit = Math.floor(0x100000000 / alphabet.length) * alphabet.length;
+      if (buf[0] < limit) out.push(alphabet[buf[0] % alphabet.length]); // no modulo bias
+    }
+    return out.join("");
+  }
+
+  function openPasswordReset(u) {
+    pwTarget = u;
+    document.getElementById("pwWho").textContent = u.email;
+    pwInput.value = "";
+    api.setError("pwError", "");
+    pwModal = pwModal || new bootstrap.Modal(pwModalEl);
+    pwModal.show();
+  }
+  pwModalEl.addEventListener("shown.bs.modal", () => pwInput.focus());
+  // Don't leave a password sitting in the DOM after the dialog closes.
+  pwModalEl.addEventListener("hidden.bs.modal", () => { pwInput.value = ""; pwTarget = null; });
+  document.getElementById("pwGenerate").addEventListener("click", () => { pwInput.value = randomPassword(); pwInput.select(); });
+  document.getElementById("pwCopy").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(pwInput.value); } catch (e) { pwInput.select(); }
+  });
+
+  document.getElementById("pwForm").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    if (!pwTarget) return;
+    const password = pwInput.value;
+    if (password.length < 12) { api.setError("pwError", "Password must be at least 12 characters."); return; }
+    const btn = ev.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    api.setError("pwError", "");
+    try {
+      await api.post("/admin/users/" + pwTarget.id + "/password", { password });
+      pwModal.hide();
+      await loadUsers();
+    } catch (e) {
+      api.setError("pwError", e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   async function loadUsers() {
     const { users } = await api.get("/admin/users");
