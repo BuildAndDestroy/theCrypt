@@ -402,17 +402,6 @@ footer.bg-dark {
     margin-right: auto;
     overflow-wrap: anywhere;
 }
-/* The decryption-key download shows only once the operator has uploaded a key
-   (countdown.js adds .has-key from the public API); hidden otherwise. */
-.key-slot { display: none; }
-[data-biopsy].has-key .key-slot { display: block; }
-.leak-download .key-download {
-    --bs-btn-color: var(--crypt-accent);
-    --bs-btn-border-color: var(--crypt-accent-d);
-    --bs-btn-hover-bg: var(--crypt-accent);
-    --bs-btn-hover-border-color: var(--crypt-accent);
-    --bs-btn-hover-color: #06110b;
-}
 
 /* ---------- named subjects (tools/subjects.json) ---------- */
 .subject-mono {

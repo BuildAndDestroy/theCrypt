@@ -99,7 +99,6 @@
                     el.dataset.countdown = b.deadline;
                 });
                 box.classList.toggle("expired", !!b.released);
-                box.classList.toggle("has-key", !!b.hasKey);
             });
         });
         start();

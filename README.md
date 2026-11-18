@@ -542,17 +542,19 @@ biopsy, from the **Countdowns** tab of `/admin/`:
   They are **exercise / simulated content** — published to anyone once the
   deadline passes, exactly like the defaults.
 - **Upload a decryption key** (any small file ≤ 1 MiB — a PEM, PGP block or
-  passphrase; **simulated**) published alongside the archive on the same
-  deadline. A biopsy has no key unless one is uploaded; the biopsy page shows a
-  *Download decryption key* button only when it does. *Remove* drops it. Stored
-  in GridFS (bucket `keys`) and served opaque (`application/octet-stream`).
+  passphrase; **simulated**) kept **for operators only**. Unlike the archive it
+  is **never published to visitors** — not on expiry, not ever — and there is no
+  public key URL. An operator downloads it from the console at any time via the
+  authenticated `GET /api/admin/biopsies/:n/key` (requires `biopsies:manage`);
+  *Remove* drops it. Stored in GridFS (bucket `keys`), served opaque.
 
-Release is enforced **server-side**: nginx hands every `/biopsy-N/files/*.zip`
-request (and `/biopsy-N/key`) to chat-api, which serves the archive (the
-operator's upload, or the generated default via `X-Accel-Redirect`) or the key
-only if that biopsy's deadline has passed, and returns `404` otherwise. The
-check fails closed. This is part of the chat-api release; the public read
-endpoint is `GET /api/public/biopsies` (now including a `hasKey` flag).
+Archive release is enforced **server-side**: nginx hands every
+`/biopsy-N/files/*.zip` request to chat-api, which serves the archive (the
+operator's upload, or the generated default via `X-Accel-Redirect`) only if that
+biopsy's deadline has passed, and returns `404` otherwise. The check fails
+closed. The **key is not part of this public path at all** — it has no
+unauthenticated route and the public feed `GET /api/public/biopsies` does not
+even reveal whether a key exists.
 
 ## Operator chat
 
