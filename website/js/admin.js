@@ -382,8 +382,17 @@
         file.disabled = false;
       });
     });
+    let download = null;
     let remove = null;
     if (b.key) {
+      // Operator-only download. A same-origin GET carries the session cookie, so
+      // a plain link authenticates; the key is never reachable without a session.
+      download = el("a", {
+        href: "/api/admin/biopsies/" + b.n + "/key",
+        class: "btn btn-sm btn-outline-info mt-1 ms-1",
+        download: "biopsy-" + b.n + "-" + b.key.filename,
+        rel: "noopener",
+      }, "Download");
       remove = el("button", { type: "button", class: "btn btn-sm btn-outline-secondary mt-1 ms-1" }, "Remove");
       remove.addEventListener("click", async () => {
         if (!confirm("Remove the decryption key for " + b.title + "?")) return;
@@ -392,7 +401,7 @@
         catch (e) { api.setError("timerError", e.message); }
       });
     }
-    cell.appendChild(el("div", { class: "d-flex align-items-center gap-1 flex-wrap" }, file, up, remove));
+    cell.appendChild(el("div", { class: "d-flex align-items-center gap-1 flex-wrap" }, file, up, download, remove));
     return cell;
   }
 

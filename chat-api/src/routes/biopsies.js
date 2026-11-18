@@ -19,12 +19,13 @@ const iso = (d) => new Date(d).toISOString();
 export const publicBiopsiesRouter = Router();
 publicBiopsiesRouter.get("/biopsies", async (_req, res, next) => {
   try {
-    const [list, keys] = await Promise.all([listBiopsies(), uploadMap("key")]);
+    const list = await listBiopsies();
+    // Deliberately exposes nothing about decryption keys: keys are operator-only
+    // and never leave the admin API, so the public feed must not even reveal
+    // that one exists.
     res.json({
       now: iso(Date.now()),
-      // hasKey lets the page show a "Download decryption key" button only when a
-      // key has been uploaded; the download itself is still deadline-gated.
-      biopsies: list.map((b) => ({ n: b.n, deadline: iso(b.deadline), released: b.released, hasKey: keys.has(b.n) })),
+      biopsies: list.map((b) => ({ n: b.n, deadline: iso(b.deadline), released: b.released })),
     });
   } catch (err) {
     next(err);
@@ -71,38 +72,6 @@ export async function downloadHandler(req, res) {
     stream.pipe(res);
   } catch (err) {
     console.error("download handler failed:", err?.message);
-    if (!res.headersSent) res.sendStatus(404); // fail closed
-  }
-}
-
-// nginx hands /biopsy-N/key here. Same deadline gate as the archive: 404 until
-// released, 404 if the operator never uploaded a key, else stream it from
-// GridFS. Served opaque (application/octet-stream) at a fixed filename.
-export async function keyDownloadHandler(req, res) {
-  try {
-    const uri = req.get("x-original-uri") || req.originalUrl || "";
-    const m = /^\/biopsy-(\d{1,4})\/key(?:\?.*)?$/.exec(uri);
-    if (!m) return res.sendStatus(404);
-    const n = Number(m[1]);
-
-    if (!(await manifest()).has(n)) return res.sendStatus(404);
-    if (!(await isReleased(n))) return res.sendStatus(404); // not published yet
-    const key = await uploadFor("key", n);
-    if (!key) return res.sendStatus(404); // no key uploaded for this biopsy
-
-    res.setHeader("Content-Type", "application/octet-stream");
-    res.setHeader("Content-Length", String(key.size));
-    res.setHeader("Content-Disposition", `attachment; filename="biopsy-${n}-${key.filename}"`);
-    res.setHeader("Cache-Control", "no-store");
-    const stream = openDownload("key", key.gridId);
-    stream.on("error", (err) => {
-      console.error(`key stream biopsy-${n}: ${err.message}`);
-      if (!res.headersSent) res.sendStatus(404);
-      else res.destroy();
-    });
-    stream.pipe(res);
-  } catch (err) {
-    console.error("key download handler failed:", err?.message);
     if (!res.headersSent) res.sendStatus(404); // fail closed
   }
 }
@@ -243,10 +212,35 @@ adminBiopsiesRouter.delete("/:n/archive", manageBiopsies, async (req, res, next)
   }
 });
 
-// PUT /api/admin/biopsies/:n/key — upload the decryption key published with the
-// archive when the countdown expires (exercise / simulated content). Raw body
-// (not JSON), filename in X-Filename; replaces any previous key. Deadline-gated
-// like the archive, so it stays locked until then.
+// GET /api/admin/biopsies/:n/key — download the uploaded key. OPERATOR ONLY
+// (biopsies:manage) and NOT deadline-gated: the key is never exposed publicly,
+// and an admin can retrieve it at any time. There is no public key route.
+adminBiopsiesRouter.get("/:n/key", manageBiopsies, async (req, res, next) => {
+  try {
+    const n = await knownBiopsy(req);
+    const key = await uploadFor("key", n);
+    if (!key) return res.status(404).json({ error: "No key uploaded for this biopsy" });
+
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Length", String(key.size));
+    res.setHeader("Content-Disposition", `attachment; filename="biopsy-${n}-${key.filename}"`);
+    res.setHeader("Cache-Control", "no-store");
+    const stream = openDownload("key", key.gridId);
+    stream.on("error", (err) => {
+      console.error(`admin key stream biopsy-${n}: ${err.message}`);
+      if (!res.headersSent) res.sendStatus(500);
+      else res.destroy();
+    });
+    stream.pipe(res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/admin/biopsies/:n/key — upload the decryption key for this biopsy
+// (exercise / simulated content). Raw body (not JSON), filename in X-Filename;
+// replaces any previous key. The key is operator-only and is never published to
+// visitors — not on expiry, not ever.
 adminBiopsiesRouter.put("/:n/key", manageBiopsies, async (req, res, next) => {
   try {
     const n = await knownBiopsy(req);
