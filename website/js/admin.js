@@ -254,7 +254,8 @@
   function fmtBytes(n) {
     if (n < 1024) return n + " B";
     if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
-    return (n / 1048576).toFixed(1) + " MB";
+    if (n < 1073741824) return (n / 1048576).toFixed(1) + " MB";
+    return (n / 1073741824).toFixed(2) + " GB";
   }
 
   async function saveDeadline(b, iso) {
@@ -267,27 +268,35 @@
     }
   }
 
-  // Raw-body .zip upload (not JSON), so a dedicated fetch rather than CryptApi.
-  async function uploadArchive(n, file) {
+  // Raw-body .zip upload (not JSON). XHR rather than fetch so multi-GB
+  // uploads (slow over Tor) can report progress via onProgress(fraction).
+  async function uploadArchive(n, file, onProgress) {
     if (!/\.zip$/i.test(file.name)) { api.setError("timerError", "Choose a .zip file."); return; }
     if (file.size > maxUploadBytes) { api.setError("timerError", "That file is over the " + fmtBytes(maxUploadBytes) + " limit."); return; }
     api.setError("timerError", "");
-    let res, data = {};
-    try {
-      res = await fetch("/api/admin/biopsies/" + n + "/archive", {
-        method: "PUT",
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: { "X-Crypt-Request": "1", "Content-Type": "application/zip", "X-Filename": file.name },
-        body: file,
-      });
-      try { data = await res.json(); } catch (e) { /* empty */ }
-    } catch (e) {
-      api.setError("timerError", "Upload failed (connection).");
+    const res = await new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", "/api/admin/biopsies/" + n + "/archive");
+      xhr.withCredentials = true;
+      xhr.setRequestHeader("X-Crypt-Request", "1");
+      xhr.setRequestHeader("Content-Type", "application/zip");
+      xhr.setRequestHeader("X-Filename", file.name);
+      xhr.setRequestHeader("Cache-Control", "no-store");
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+      xhr.onload = () => {
+        let data = {};
+        try { data = JSON.parse(xhr.responseText); } catch (e) { /* empty */ }
+        resolve({ status: xhr.status, data });
+      };
+      xhr.onerror = xhr.onabort = xhr.ontimeout = () => resolve(null);
+      xhr.send(file);
+    });
+    if (!res) { api.setError("timerError", "Upload failed (connection)."); return; }
+    if (res.status === 401) { location.reload(); return; }
+    if (res.status < 200 || res.status >= 300) {
+      api.setError("timerError", res.data.error || (res.status === 413 ? "File too large." : "Upload failed (" + res.status + ")."));
       return;
     }
-    if (res.status === 401) { location.reload(); return; }
-    if (!res.ok) { api.setError("timerError", data.error || "Upload failed (" + res.status + ")."); return; }
     await loadTimers();
   }
 
@@ -307,8 +316,18 @@
     const up = el("button", { type: "button", class: "btn btn-sm btn-outline-primary mt-1" }, b.upload ? "Replace" : "Upload");
     up.addEventListener("click", () => {
       if (!file.files || !file.files[0]) { api.setError("timerError", "Pick a .zip file first."); return; }
+      const label = up.textContent;
       up.disabled = true;
-      uploadArchive(b.n, file.files[0]).finally(() => { up.disabled = false; });
+      file.disabled = true;
+      const onProgress = (f) => {
+        up.textContent = f >= 1 ? "Saving…" : "Uploading " + Math.floor(f * 100) + "%";
+      };
+      onProgress(0);
+      uploadArchive(b.n, file.files[0], onProgress).finally(() => {
+        up.textContent = label;
+        up.disabled = false;
+        file.disabled = false;
+      });
     });
     let remove = null;
     if (b.upload) {
