@@ -95,7 +95,12 @@ async function main() {
   await mongoose.syncIndexes();
   await checkPlaintext();
   await ensureAdmin();
-  app.listen(PORT, HOST, () => console.log(`chat-api listening on ${HOST}:${PORT}`));
+  const server = app.listen(PORT, HOST, () => console.log(`chat-api listening on ${HOST}:${PORT}`));
+  // Node's default requestTimeout (5 min) would cut off a multi-GB archive
+  // upload streamed over Tor. The API is loopback-only behind nginx, which
+  // buffers every other request in full and enforces client_body_timeout on
+  // the unbuffered upload location, so nginx is the slow-client guard here.
+  server.requestTimeout = 0;
 }
 
 main().catch((err) => {

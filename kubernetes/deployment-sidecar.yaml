@@ -195,6 +195,10 @@ spec:
         # plaintext rows accepted); "true" refuses them.
         - name: STRICT_ENCRYPTION
           value: "true"               # render.sh: STRICT_ENCRYPTION
+        # Leak-archive upload cap in MiB (default 10240 = 10 GiB; nginx
+        # allows up to 20 GiB). Uploads live in GridFS on the Mongo NFS volume.
+        - name: ARCHIVE_MAX_MB
+          value: "10240"
         # TLS to MongoDB, verified against the mongo-tls CA (needs mongod's
         # MONGO_TLS_MODE != disabled).
         - name: MONGO_TLS

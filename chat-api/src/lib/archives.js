@@ -10,7 +10,24 @@ import mongoose from "mongoose";
 import { GridFSBucket } from "mongodb";
 import { BiopsyArchive } from "../models/index.js";
 
-export const MAX_ARCHIVE_BYTES = 64 * 1024 * 1024; // 64 MiB
+// Size cap, in MiB, from ARCHIVE_MAX_MB (default 10 GiB). nginx's
+// client_max_body_size on the upload location (20g) is the hard ceiling above it.
+const DEFAULT_MAX_MB = 10 * 1024;
+function maxMb() {
+  const raw = process.env.ARCHIVE_MAX_MB;
+  if (raw === undefined || raw === "") return DEFAULT_MAX_MB;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > 20 * 1024) {
+    throw new Error(`ARCHIVE_MAX_MB must be an integer from 1 to 20480 (got "${raw}")`);
+  }
+  return n;
+}
+export const MAX_ARCHIVE_BYTES = maxMb() * 1024 * 1024;
+
+function fmtLimit(bytes) {
+  const mib = bytes / (1024 * 1024);
+  return mib >= 1024 ? `${+(mib / 1024).toFixed(2)} GiB` : `${mib} MiB`;
+}
 const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]); // "PK\x03\x04"
 
 export class UploadError extends Error {
@@ -67,7 +84,7 @@ export async function storeArchive({ n, filename, contentType, source, uploadedB
       }
       size += chunk.length;
       if (size > MAX_ARCHIVE_BYTES) {
-        return fail(new UploadError(`Archive exceeds the ${Math.floor(MAX_ARCHIVE_BYTES / (1024 * 1024))} MiB limit`));
+        return fail(new UploadError(`Archive exceeds the ${fmtLimit(MAX_ARCHIVE_BYTES)} limit`));
       }
       hash.update(chunk);
     });

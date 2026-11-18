@@ -536,7 +536,8 @@ biopsy, from the **Countdowns** tab of `/admin/`:
 - **Set / reset the deadline.** An override is stored in MongoDB; *Reset* drops
   it, back to the generated default. Visitors' pages pick up a change within
   two minutes, or on reload.
-- **Upload a leak archive** (`.zip`, ≤ 64 MiB) to replace the generated default
+- **Upload a leak archive** (`.zip`, ≤ 10 GiB by default; set `ARCHIVE_MAX_MB`
+  on chat-api, up to nginx's 20 GiB ceiling) to replace the generated default
   for that biopsy; *Remove* restores the default. Uploads are stored in GridFS.
   They are **exercise / simulated content** — published to anyone once the
   deadline passes, exactly like the defaults.
