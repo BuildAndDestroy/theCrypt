@@ -250,6 +250,7 @@
   }
 
   let maxUploadBytes = 64 * 1024 * 1024;
+  let maxKeyBytes = 1024 * 1024;
 
   function fmtBytes(n) {
     if (n < 1024) return n + " B";
@@ -268,18 +269,15 @@
     }
   }
 
-  // Raw-body .zip upload (not JSON). XHR rather than fetch so multi-GB
-  // uploads (slow over Tor) can report progress via onProgress(fraction).
-  async function uploadArchive(n, file, onProgress) {
-    if (!/\.zip$/i.test(file.name)) { api.setError("timerError", "Choose a .zip file."); return; }
-    if (file.size > maxUploadBytes) { api.setError("timerError", "That file is over the " + fmtBytes(maxUploadBytes) + " limit."); return; }
-    api.setError("timerError", "");
+  // Raw-body PUT upload (not JSON). XHR rather than fetch so a large upload
+  // (slow over Tor) can report progress via onProgress(fraction).
+  async function putUpload(url, contentType, file, onProgress) {
     const res = await new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
-      xhr.open("PUT", "/api/admin/biopsies/" + n + "/archive");
+      xhr.open("PUT", url);
       xhr.withCredentials = true;
       xhr.setRequestHeader("X-Crypt-Request", "1");
-      xhr.setRequestHeader("Content-Type", "application/zip");
+      xhr.setRequestHeader("Content-Type", contentType);
       xhr.setRequestHeader("X-Filename", file.name);
       xhr.setRequestHeader("Cache-Control", "no-store");
       xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
@@ -291,13 +289,30 @@
       xhr.onerror = xhr.onabort = xhr.ontimeout = () => resolve(null);
       xhr.send(file);
     });
-    if (!res) { api.setError("timerError", "Upload failed (connection)."); return; }
-    if (res.status === 401) { location.reload(); return; }
+    if (!res) { api.setError("timerError", "Upload failed (connection)."); return false; }
+    if (res.status === 401) { location.reload(); return false; }
     if (res.status < 200 || res.status >= 300) {
       api.setError("timerError", res.data.error || (res.status === 413 ? "File too large." : "Upload failed (" + res.status + ")."));
-      return;
+      return false;
     }
     await loadTimers();
+    return true;
+  }
+
+  async function uploadArchive(n, file, onProgress) {
+    if (!/\.zip$/i.test(file.name)) { api.setError("timerError", "Choose a .zip file."); return; }
+    if (file.size > maxUploadBytes) { api.setError("timerError", "That file is over the " + fmtBytes(maxUploadBytes) + " limit."); return; }
+    api.setError("timerError", "");
+    await putUpload("/api/admin/biopsies/" + n + "/archive", "application/zip", file, onProgress);
+  }
+
+  // The decryption key published with the archive. Any small file (PEM, PGP
+  // block, passphrase); stored and served opaque.
+  async function uploadKey(n, file, onProgress) {
+    if (file.size > maxKeyBytes) { api.setError("timerError", "That key is over the " + fmtBytes(maxKeyBytes) + " limit."); return; }
+    if (file.size === 0) { api.setError("timerError", "That key file is empty."); return; }
+    api.setError("timerError", "");
+    await putUpload("/api/admin/biopsies/" + n + "/key", "application/octet-stream", file, onProgress);
   }
 
   function archiveCell(b) {
@@ -336,6 +351,44 @@
         if (!confirm("Remove the custom archive for " + b.title + "? The generated default is restored.")) return;
         api.setError("timerError", "");
         try { await api.del("/admin/biopsies/" + b.n + "/archive"); await loadTimers(); }
+        catch (e) { api.setError("timerError", e.message); }
+      });
+    }
+    cell.appendChild(el("div", { class: "d-flex align-items-center gap-1 flex-wrap" }, file, up, remove));
+    return cell;
+  }
+
+  function keyCell(b) {
+    const cell = el("td", null);
+    const manage = may("biopsies:manage");
+    if (b.key) {
+      cell.appendChild(el("div", { class: "small" },
+        el("span", { class: "badge bg-info text-dark me-1" }, "key"),
+        b.key.filename + " · " + fmtBytes(b.key.size)));
+    } else {
+      cell.appendChild(el("div", { class: "small text-secondary" }, "none"));
+    }
+    if (!manage) return cell;
+    const file = el("input", { type: "file", class: "form-control form-control-sm mt-1 timer-file" });
+    const up = el("button", { type: "button", class: "btn btn-sm btn-outline-primary mt-1" }, b.key ? "Replace" : "Upload");
+    up.addEventListener("click", () => {
+      if (!file.files || !file.files[0]) { api.setError("timerError", "Pick a key file first."); return; }
+      const label = up.textContent;
+      up.disabled = true;
+      file.disabled = true;
+      uploadKey(b.n, file.files[0]).finally(() => {
+        up.textContent = label;
+        up.disabled = false;
+        file.disabled = false;
+      });
+    });
+    let remove = null;
+    if (b.key) {
+      remove = el("button", { type: "button", class: "btn btn-sm btn-outline-secondary mt-1 ms-1" }, "Remove");
+      remove.addEventListener("click", async () => {
+        if (!confirm("Remove the decryption key for " + b.title + "?")) return;
+        api.setError("timerError", "");
+        try { await api.del("/admin/biopsies/" + b.n + "/key"); await loadTimers(); }
         catch (e) { api.setError("timerError", e.message); }
       });
     }
@@ -384,6 +437,7 @@
       el("td", null, status),
       el("td", null, manage ? el("div", { class: "d-flex gap-2 align-items-center" }, input, setBtn) : el("span", { class: "text-secondary small" }, "—")),
       archiveCell(b),
+      keyCell(b),
       el("td", { class: "text-end" }, resetBtn),
     );
   }
@@ -391,11 +445,12 @@
   async function loadTimers() {
     const data = await api.get("/admin/biopsies");
     if (typeof data.maxUploadBytes === "number") maxUploadBytes = data.maxUploadBytes;
+    if (typeof data.maxKeyBytes === "number") maxKeyBytes = data.maxKeyBytes;
     const now = new Date(data.now).getTime();
     const tbody = document.getElementById("timerTable");
     tbody.replaceChildren();
     if (!data.biopsies.length) {
-      tbody.appendChild(el("tr", null, el("td", { colspan: "7", class: "text-secondary" },
+      tbody.appendChild(el("tr", null, el("td", { colspan: "8", class: "text-secondary" },
         "No biopsies found — the API could not read /biopsies.json from the site.")));
       return;
     }

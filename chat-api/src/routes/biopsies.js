@@ -1,5 +1,6 @@
-// Biopsy countdowns: public read, operator set / reset, per-biopsy archive
-// upload, and the internal download handler nginx hands every dump request to.
+// Biopsy countdowns: public read, operator set / reset, per-biopsy archive and
+// decryption-key upload, and the internal download handlers nginx hands every
+// dump / key request to.
 import { Router } from "express";
 import { BiopsyDeadline } from "../models/index.js";
 import { PERMISSIONS } from "../lib/rbac.js";
@@ -7,7 +8,7 @@ import * as v from "../lib/validate.js";
 import { requirePermission } from "../middleware/auth.js";
 import { isReleased, listBiopsies, manifest, resetManifestCache } from "../lib/biopsies.js";
 import {
-  archiveFor, archiveMap, deleteArchive, MAX_ARCHIVE_BYTES, openArchiveDownload, storeArchive, UploadError,
+  deleteUpload, MAX_ARCHIVE_BYTES, MAX_KEY_BYTES, openDownload, storeUpload, uploadFor, uploadMap, UploadError,
 } from "../lib/archives.js";
 
 const iso = (d) => new Date(d).toISOString();
@@ -18,10 +19,12 @@ const iso = (d) => new Date(d).toISOString();
 export const publicBiopsiesRouter = Router();
 publicBiopsiesRouter.get("/biopsies", async (_req, res, next) => {
   try {
-    const list = await listBiopsies();
+    const [list, keys] = await Promise.all([listBiopsies(), uploadMap("key")]);
     res.json({
       now: iso(Date.now()),
-      biopsies: list.map((b) => ({ n: b.n, deadline: iso(b.deadline), released: b.released })),
+      // hasKey lets the page show a "Download decryption key" button only when a
+      // key has been uploaded; the download itself is still deadline-gated.
+      biopsies: list.map((b) => ({ n: b.n, deadline: iso(b.deadline), released: b.released, hasKey: keys.has(b.n) })),
     });
   } catch (err) {
     next(err);
@@ -48,7 +51,7 @@ export async function downloadHandler(req, res) {
     if (!b || !b.archive || requested !== b.archive) return res.sendStatus(404); // only the biopsy's own archive name
     if (!(await isReleased(n))) return res.sendStatus(404); // not published yet
 
-    const override = await archiveFor(n);
+    const override = await uploadFor("archive", n);
     if (!override) {
       // Let nginx serve the generated default from the image (efficient, no body through Node).
       res.setHeader("X-Accel-Redirect", `/_dump_static/biopsy-${n}/${b.archive}`);
@@ -59,7 +62,7 @@ export async function downloadHandler(req, res) {
     res.setHeader("Content-Length", String(override.size));
     res.setHeader("Content-Disposition", `attachment; filename="${b.archive}"`);
     res.setHeader("Cache-Control", "no-store");
-    const stream = openArchiveDownload(override.gridId);
+    const stream = openDownload("archive", override.gridId);
     stream.on("error", (err) => {
       console.error(`archive stream biopsy-${n}: ${err.message}`);
       if (!res.headersSent) res.sendStatus(404);
@@ -72,12 +75,50 @@ export async function downloadHandler(req, res) {
   }
 }
 
+// nginx hands /biopsy-N/key here. Same deadline gate as the archive: 404 until
+// released, 404 if the operator never uploaded a key, else stream it from
+// GridFS. Served opaque (application/octet-stream) at a fixed filename.
+export async function keyDownloadHandler(req, res) {
+  try {
+    const uri = req.get("x-original-uri") || req.originalUrl || "";
+    const m = /^\/biopsy-(\d{1,4})\/key(?:\?.*)?$/.exec(uri);
+    if (!m) return res.sendStatus(404);
+    const n = Number(m[1]);
+
+    if (!(await manifest()).has(n)) return res.sendStatus(404);
+    if (!(await isReleased(n))) return res.sendStatus(404); // not published yet
+    const key = await uploadFor("key", n);
+    if (!key) return res.sendStatus(404); // no key uploaded for this biopsy
+
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Length", String(key.size));
+    res.setHeader("Content-Disposition", `attachment; filename="biopsy-${n}-${key.filename}"`);
+    res.setHeader("Cache-Control", "no-store");
+    const stream = openDownload("key", key.gridId);
+    stream.on("error", (err) => {
+      console.error(`key stream biopsy-${n}: ${err.message}`);
+      if (!res.headersSent) res.sendStatus(404);
+      else res.destroy();
+    });
+    stream.pipe(res);
+  } catch (err) {
+    console.error("key download handler failed:", err?.message);
+    if (!res.headersSent) res.sendStatus(404); // fail closed
+  }
+}
+
 // -------------------------------------------------------------- admin
 export const adminBiopsiesRouter = Router();
 adminBiopsiesRouter.use(requirePermission(PERMISSIONS.BIOPSIES_READ));
 const manageBiopsies = requirePermission(PERMISSIONS.BIOPSIES_MANAGE);
 
-function serializeAdmin(b, upload) {
+function uploadMeta(u) {
+  return u
+    ? { filename: u.filename, size: u.size, sha256: u.sha256, uploadedAt: iso(u.updatedAt ?? u.createdAt) }
+    : null;
+}
+
+function serializeAdmin(b, upload, key) {
   return {
     n: b.n,
     title: b.title,
@@ -87,29 +128,30 @@ function serializeAdmin(b, upload) {
     overridden: b.overridden,      // deadline differs from the default
     updatedAt: b.updatedAt ? iso(b.updatedAt) : null,
     released: b.released,
-    upload: upload
-      ? { filename: upload.filename, size: upload.size, sha256: upload.sha256, uploadedAt: iso(upload.updatedAt ?? upload.createdAt) }
-      : null,
+    upload: uploadMeta(upload),    // archive override
+    key: uploadMeta(key),          // decryption key published with the archive
   };
 }
 
 // One biopsy's admin view, after a change.
 async function adminView(n) {
-  const [b, upload] = await Promise.all([
+  const [b, upload, key] = await Promise.all([
     listBiopsies().then((l) => l.find((x) => x.n === n)),
-    archiveFor(n),
+    uploadFor("archive", n),
+    uploadFor("key", n),
   ]);
-  return serializeAdmin(b, upload);
+  return serializeAdmin(b, upload, key);
 }
 
 adminBiopsiesRouter.get("/", async (_req, res, next) => {
   try {
     resetManifestCache(); // the operator should always see the deployed manifest
-    const [list, uploads] = await Promise.all([listBiopsies(), archiveMap()]);
+    const [list, uploads, keys] = await Promise.all([listBiopsies(), uploadMap("archive"), uploadMap("key")]);
     res.json({
       now: iso(Date.now()),
       maxUploadBytes: MAX_ARCHIVE_BYTES,
-      biopsies: list.map((b) => serializeAdmin(b, uploads.get(b.n))),
+      maxKeyBytes: MAX_KEY_BYTES,
+      biopsies: list.map((b) => serializeAdmin(b, uploads.get(b.n), keys.get(b.n))),
     });
   } catch (err) {
     next(err);
@@ -176,7 +218,7 @@ adminBiopsiesRouter.post("/:n/reset", manageBiopsies, async (req, res, next) => 
 adminBiopsiesRouter.put("/:n/archive", manageBiopsies, async (req, res, next) => {
   try {
     const n = await knownBiopsy(req);
-    await storeArchive({
+    await storeUpload("archive", {
       n,
       filename: req.get("x-filename"),
       contentType: req.get("content-type"),
@@ -194,7 +236,39 @@ adminBiopsiesRouter.put("/:n/archive", manageBiopsies, async (req, res, next) =>
 adminBiopsiesRouter.delete("/:n/archive", manageBiopsies, async (req, res, next) => {
   try {
     const n = await knownBiopsy(req);
-    await deleteArchive(n);
+    await deleteUpload("archive", n);
+    res.json({ biopsy: await adminView(n) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/admin/biopsies/:n/key — upload the decryption key published with the
+// archive when the countdown expires (exercise / simulated content). Raw body
+// (not JSON), filename in X-Filename; replaces any previous key. Deadline-gated
+// like the archive, so it stays locked until then.
+adminBiopsiesRouter.put("/:n/key", manageBiopsies, async (req, res, next) => {
+  try {
+    const n = await knownBiopsy(req);
+    await storeUpload("key", {
+      n,
+      filename: req.get("x-filename"),
+      contentType: req.get("content-type"),
+      source: req,
+      uploadedBy: req.user._id,
+    });
+    res.json({ biopsy: await adminView(n) });
+  } catch (err) {
+    if (err instanceof UploadError) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+// DELETE /api/admin/biopsies/:n/key — drop the uploaded key.
+adminBiopsiesRouter.delete("/:n/key", manageBiopsies, async (req, res, next) => {
+  try {
+    const n = await knownBiopsy(req);
+    await deleteUpload("key", n);
     res.json({ biopsy: await adminView(n) });
   } catch (err) {
     next(err);

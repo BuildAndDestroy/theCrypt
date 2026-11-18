@@ -119,6 +119,9 @@ export const Session = model("Session", sessionSchema);
 export const Message = model("Message", messageSchema);
 export const BiopsyDeadline = model("BiopsyDeadline", biopsyDeadlineSchema);
 export const BiopsyArchive = model("BiopsyArchive", biopsyArchiveSchema);
+// The decryption key published alongside the archive (exercise content, same
+// deadline gate). Same shape; bytes in GridFS bucket "keys".
+export const BiopsyKey = model("BiopsyKey", biopsyArchiveSchema.clone());
 
 /**
  * Query filter for "the user with this email": by blind index (current key,

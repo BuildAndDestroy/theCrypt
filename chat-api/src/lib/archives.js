@@ -1,14 +1,16 @@
-// Operator-uploaded leak archives, stored in GridFS (bucket "archives").
+// Operator uploads attached to a biopsy, stored in GridFS:
+//   archive — the leak .zip that replaces the generated default (bucket "archives")
+//   key     — the matching decryption key file served beside it (bucket "keys")
 //
-// These replace the generated default dump for a biopsy. They are exercise /
-// simulated content for an authorised emulation, published only once the
-// biopsy's deadline passes (routes/biopsies.js gates every download). We cap
-// the size and require a ZIP so the console can't be used to host arbitrary
-// large files, and stream in/out so a big file never sits in memory.
+// Both are exercise / simulated content for an authorised emulation, published
+// only once the biopsy's deadline passes (routes/biopsies.js gates every
+// download). We cap the size (and require a ZIP for archives) so the console
+// can't be used to host arbitrary files, and stream in/out so nothing large
+// ever sits in memory.
 import crypto from "node:crypto";
 import mongoose from "mongoose";
 import { GridFSBucket } from "mongodb";
-import { BiopsyArchive } from "../models/index.js";
+import { BiopsyArchive, BiopsyKey } from "../models/index.js";
 
 // Size cap, in MiB, from ARCHIVE_MAX_MB (default 10 GiB). nginx's
 // client_max_body_size on the upload location (20g) is the hard ceiling above it.
@@ -23,12 +25,26 @@ function maxMb() {
   return n;
 }
 export const MAX_ARCHIVE_BYTES = maxMb() * 1024 * 1024;
+export const MAX_KEY_BYTES = 1024 * 1024; // keys are small: a PEM, PGP block, or passphrase file
 
 function fmtLimit(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.floor(bytes / 1024)} KiB`;
   const mib = bytes / (1024 * 1024);
   return mib >= 1024 ? `${+(mib / 1024).toFixed(2)} GiB` : `${mib} MiB`;
 }
 const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]); // "PK\x03\x04"
+
+// The two upload kinds. `zip` requires the ZIP magic and keeps a .zip name;
+// a key is any small file, always served back as an opaque download.
+const KINDS = {
+  archive: { bucketName: "archives", model: BiopsyArchive, maxBytes: MAX_ARCHIVE_BYTES, zip: true, fallback: "archive.zip", contentType: "application/zip" },
+  key:     { bucketName: "keys",     model: BiopsyKey,     maxBytes: MAX_KEY_BYTES,     zip: false, fallback: "decryption.key", contentType: "application/octet-stream" },
+};
+function kindOf(kind) {
+  const k = KINDS[kind];
+  if (!k) throw new Error(`unknown upload kind: ${kind}`);
+  return k;
+}
 
 export class UploadError extends Error {
   constructor(message) {
@@ -38,32 +54,40 @@ export class UploadError extends Error {
   }
 }
 
-function bucket() {
-  return new GridFSBucket(mongoose.connection.db, { bucketName: "archives" });
+function bucket(kind) {
+  return new GridFSBucket(mongoose.connection.db, { bucketName: kindOf(kind).bucketName });
 }
 
 // Keep a client-supplied name only as a tidy basename; the public URL never
 // uses it (downloads serve at the biopsy's default filename).
-export function safeArchiveName(input) {
+function safeName(input, fallback, requireZip) {
   const base = String(input || "").replace(/[^A-Za-z0-9._-]/g, "_").replace(/^\.+/, "").slice(-128);
-  const name = base || "archive.zip";
+  const name = base || fallback;
+  if (!requireZip) return name;
   return /\.zip$/i.test(name) ? name : name + ".zip";
+}
+export function safeArchiveName(input) {
+  return safeName(input, "archive.zip", true);
 }
 
 /**
- * Stream `req` into GridFS for biopsy `n`, enforcing the ZIP magic and size
- * cap. Replaces any existing archive for `n`. Returns the metadata doc.
+ * Stream `source` into GridFS as biopsy `n`'s `kind` upload ("archive" or
+ * "key"), enforcing the size cap (and ZIP magic for archives). Replaces any
+ * existing upload of that kind for `n`. Returns the metadata doc.
  */
-export async function storeArchive({ n, filename, contentType, source, uploadedBy }) {
+export async function storeUpload(kind, { n, filename, contentType, source, uploadedBy }) {
+  const k = kindOf(kind);
   const id = new mongoose.Types.ObjectId();
   const hash = crypto.createHash("sha256");
+  const name = safeName(filename, k.fallback, k.zip);
+  // Archives keep the browser's type (still application/zip by default); keys
+  // are always stored and served opaque, whatever the operator's browser sent.
+  const storedType = k.zip ? (contentType || k.contentType) : k.contentType;
   let size = 0;
-  let checkedMagic = false;
+  let checkedMagic = !k.zip; // only archives gate on magic bytes
   let aborted = null;
 
-  const upload = bucket().openUploadStreamWithId(id, safeArchiveName(filename), {
-    contentType: contentType || "application/zip",
-  });
+  const upload = bucket(kind).openUploadStreamWithId(id, name, { contentType: storedType });
 
   await new Promise((resolve, reject) => {
     const fail = (err) => {
@@ -83,8 +107,8 @@ export async function storeArchive({ n, filename, contentType, source, uploadedB
         }
       }
       size += chunk.length;
-      if (size > MAX_ARCHIVE_BYTES) {
-        return fail(new UploadError(`Archive exceeds the ${fmtLimit(MAX_ARCHIVE_BYTES)} limit`));
+      if (size > k.maxBytes) {
+        return fail(new UploadError(`Upload exceeds the ${fmtLimit(k.maxBytes)} limit`));
       }
       hash.update(chunk);
     });
@@ -95,41 +119,34 @@ export async function storeArchive({ n, filename, contentType, source, uploadedB
   });
 
   if (size === 0) {
-    await bucket().delete(id).catch(() => {});
+    await bucket(kind).delete(id).catch(() => {});
     throw new UploadError("Empty upload");
   }
 
-  const doc = {
-    filename: safeArchiveName(filename),
-    size,
-    sha256: hash.digest("hex"),
-    contentType: contentType || "application/zip",
-    gridId: id,
-    uploadedBy,
-  };
-  const prev = await BiopsyArchive.findOneAndUpdate({ n }, { $set: doc }, { upsert: true });
-  if (prev?.gridId) await bucket().delete(prev.gridId).catch(() => {}); // drop the old bytes
+  const doc = { filename: name, size, sha256: hash.digest("hex"), contentType: storedType, gridId: id, uploadedBy };
+  const prev = await k.model.findOneAndUpdate({ n }, { $set: doc }, { upsert: true });
+  if (prev?.gridId) await bucket(kind).delete(prev.gridId).catch(() => {}); // drop the old bytes
   return { n, ...doc };
 }
 
-/** Remove the override for biopsy `n` (back to the generated default). */
-export async function deleteArchive(n) {
-  const doc = await BiopsyArchive.findOneAndDelete({ n });
+/** Remove biopsy `n`'s upload of `kind` (archive: back to the generated default). */
+export async function deleteUpload(kind, n) {
+  const doc = await kindOf(kind).model.findOneAndDelete({ n });
   if (!doc) return false;
-  await bucket().delete(doc.gridId).catch(() => {});
+  await bucket(kind).delete(doc.gridId).catch(() => {});
   return true;
 }
 
-export function openArchiveDownload(gridId) {
-  return bucket().openDownloadStream(gridId);
+export function openDownload(kind, gridId) {
+  return bucket(kind).openDownloadStream(gridId);
 }
 
-export async function archiveFor(n) {
-  return BiopsyArchive.findOne({ n }).lean();
+export async function uploadFor(kind, n) {
+  return kindOf(kind).model.findOne({ n }).lean();
 }
 
-/** Map n -> archive meta, for listing. */
-export async function archiveMap() {
-  const all = await BiopsyArchive.find().lean();
+/** Map n -> upload meta for `kind`, for listing. */
+export async function uploadMap(kind) {
+  const all = await kindOf(kind).model.find().lean();
   return new Map(all.map((a) => [a.n, a]));
 }

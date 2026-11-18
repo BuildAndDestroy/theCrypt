@@ -331,6 +331,9 @@ DOWNLOAD = """            <div class="leak-download mt-4 when-expired">
                 <p class="text-secondary mb-3">The deadline passed. The dataset has been published.</p>
                 <a class="btn btn-primary btn-lg" href="files/{file}" download><i class="bi bi-file-earmark-zip"></i> Download archive</a>
                 <div class="small text-secondary mt-3 font-monospace">{file} &middot; {size} &middot; {files} files<br>SHA-256 {sha}</div>
+                <div class="key-slot mt-3">
+                    <a class="btn btn-outline-light btn-sm key-download" href="key" download><i class="bi bi-key"></i> Download decryption key</a>
+                </div>
             </div>"""
 
 TILE = """                <div class="col-sm-6 col-lg-4">
